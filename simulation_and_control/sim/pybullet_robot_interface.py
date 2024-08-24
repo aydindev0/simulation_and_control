@@ -48,7 +48,7 @@ import json
 import pybullet  # pytype:disable=import-error
 import pybullet_data
 from pybullet_utils import bullet_client
-from controllers.servo_motor import MotorCommands, ServoMotorModel
+from ..controllers.servo_motor import MotorCommands, ServoMotorModel ## changed for the package structure
 # this is only for checking if the module is installed (TODO change this)
 missing_robot_description = False
 try:
