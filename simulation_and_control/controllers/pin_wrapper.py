@@ -102,7 +102,7 @@ class ResultsFloatingBaseJoint():
             return self.c
 
 class PinWrapper():
-    def __init__(self, conf_file_name, simulator=None, list_link_name_for_reodering = np.empty(0) ,data_source_names=[],  visualizer=False,index=0):
+    def __init__(self, conf_file_name, simulator=None, list_link_name_for_reodering = np.empty(0) ,data_source_names=[],  visualizer=False,index=0, conf_file_path_ext=None):
         
         #for index in  range(len(data_source_names)):
         if not isinstance(list_link_name_for_reodering, np.ndarray):
@@ -115,7 +115,10 @@ class PinWrapper():
         else:
             self.simulator = simulator
         
-        conf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,'configs',conf_file_name)
+        if conf_file_path_ext: # CHANGE
+             conf_file_path = os.path.join(conf_file_path_ext,'configs',conf_file_name) #CHANGE
+        else:
+            conf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,'configs',conf_file_name)
         with open(conf_file_path) as json_file:
             conf_file_json = json.load(json_file)
 
@@ -123,7 +126,7 @@ class PinWrapper():
         self.base_type = self.conf['robot_pin']['base_type'][index]    
         self.res = ResultsFloatingBaseJoint(self.base_type)
         self.visualizer = visualizer
-        urdf_file = self._UrdfPath(index)
+        urdf_file = self._UrdfPath(index,conf_file_path_ext)
         self._LoadPinURDF(urdf_file)
         # build the dictionary of feet id and the feet reference frame to standard name
         self.feet_frame_2_standard_name = {}
@@ -160,14 +163,17 @@ class PinWrapper():
             self.ext2pin = None
             self.pin2ext = None
 
-    def _UrdfPath(self,index):
+    def _UrdfPath(self,index,conf_file_path_ext:str = None):
         global missing_robot_description
         if(self.conf['robot_pin']['robot_description_model'][index] and not missing_robot_description):
             command_line_import = "from robot_descriptions import "+self.conf['robot_pin']['robot_description_model'][index]+"_description"
             exec(command_line_import)
             urdf_path = locals()[self.conf['robot_pin']['robot_description_model'][index]+"_description"].URDF_PATH
         else:
-            urdf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,'models',self.conf['robot_pin']["urdf_path"][index])
+            if conf_file_path_ext: # CHANGE
+                urdf_file_path = os.path.join(conf_file_path_ext,'models',self.conf['robot_pin']["urdf_path"][index]) #CHANGE
+            else: # CHANGE
+                urdf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,'models',self.conf['robot_pin']["urdf_path"][index])
             urdf_path = urdf_file_path
         return urdf_path
 
@@ -195,11 +201,12 @@ class PinWrapper():
             self.n = self.n_q + self.n_b
             self.n_dot = self.n_qdot + self.n_bdot
         
-        # if self.visualizer:
-        #     visual_model = collision_model
-        #     self.viz = GepettoVisualizer(self.pin_model, collision_model, visual_model)
-        #     self.viz.initViewer()
-        #     self.viz.loadViewerModel("pinocchio")
+        if self.visualizer:
+             self.collision_model = pin.buildGeomFromUrdf(self.pin_model, urdf_file, pin.GeometryType.COLLISION)
+             self.visual_model = pin.buildGeomFromUrdf(self.pin_model, urdf_file, pin.GeometryType.VISUAL)
+             self.viz = GepettoVisualizer(self.pin_model, self.collision_model , self.visual_model)
+             self.viz.initViewer()
+             self.viz.loadViewerModel("pinocchio")
             
     # here the assumption is that name of the joints follow the same order as in the coomputation of the robot dynamics in pinocchio
     # with data_source_names i can create multiple joint index conversion from and to pinocchio 

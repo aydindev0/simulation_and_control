@@ -48,7 +48,7 @@ import json
 import pybullet  # pytype:disable=import-error
 import pybullet_data
 from pybullet_utils import bullet_client
-from ..controllers.servo_motor import MotorCommands, ServoMotorModel ## changed for the package structure
+from ..controllers.servo_motor import MotorCommands, ServoMotorModel ## CHANGE changed for the package structure
 # this is only for checking if the module is installed (TODO change this)
 missing_robot_description = False
 try:
@@ -92,6 +92,7 @@ class SimRobot():
                  pybullet_client,
                  conf_file_json, # the conf_file_json is a json file that contains all the parameters of the robot
                  index,
+                 config_file_path_ext: str = None, # if it is not none th config file is not in the local config_file folder
                  ):
        
         self.conf = conf_file_json
@@ -107,8 +108,8 @@ class SimRobot():
         self.self_collision_enabled = self.conf['robot_pybullet']['collision_enable'][index]
         self.foot_link_ids={}
         self.foot_link_sensors_ids={}
-
-        urdf_path = self._UrdfPath(index)
+        print("file path ext: ",config_file_path_ext)
+        urdf_path = self._UrdfPath(index,config_file_path_ext)
         # here i create the robot object inside pybullet sim and i save it under bot_pybullet
         self._LoadPybulletURDF(urdf_path, pybullet_client,index) #(self.conf['robot']["urdf_path"], pybullet_client)
 
@@ -145,14 +146,17 @@ class SimRobot():
         self.servo_motor_model = ServoMotorModel(len(self.active_joint_ids), self.conf['robot_pybullet']["servo_pos_gains"][index], self.conf['robot_pybullet']["servo_vel_gains"][index],
                                                  friction_torque=self.conf['robot_pybullet']['motor_friction'][index], friction_coefficient=self.conf['robot_pybullet']['motor_friction_coeff'][index])
 
-    def _UrdfPath(self,index):
+    def _UrdfPath(self,index,config_file_path_ext: str = None): #CHANGE
         global missing_robot_description
         if(self.conf['robot_pybullet']['robot_description_model'][index] and not missing_robot_description):
             command_line_import = "from robot_descriptions import "+self.conf['robot_pybullet']['robot_description_model'][index]+"_description"
             exec(command_line_import)
             urdf_path = locals()[self.conf['robot_pybullet']['robot_description_model'][index]+"_description"].URDF_PATH
         else:
-            urdf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,os.pardir,'models',self.conf['robot_pybullet']["urdf_path"][index])
+            if config_file_path_ext: #CHANGE
+                urdf_file_path = os.path.join(config_file_path_ext,'models',self.conf['robot_pybullet']["urdf_path"][index]) #CHANGE
+            else: #CHANGE
+                urdf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,os.pardir,'models',self.conf['robot_pybullet']["urdf_path"][index])
             urdf_path = urdf_file_path
         return urdf_path
 
@@ -392,6 +396,7 @@ class SimInterface():
 
     def __init__(self,
                  conf_file_name: str, # here i assume that the conf file is in the  config_file folder
+                 conf_file_path_ext: str = None, # if it is not none th config file is not in the local config_file folder
                  ):
         """Constructs the robot and the environment in pybullet. 
 
@@ -402,7 +407,10 @@ class SimInterface():
     """
         
         # reading json file and instatiate some variables
-        conf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,os.pardir,'configs',conf_file_name)
+        if conf_file_path_ext: #CHANGE
+            conf_file_path = os.path.join(conf_file_path_ext,'configs',conf_file_name) #CHANGE
+        else: #CHANGE
+            conf_file_path = os.path.join(os.path.dirname(__file__),os.pardir,os.pardir,'configs',conf_file_name)
         with open(conf_file_path) as json_file:
              conf_file_json = json.load(json_file)
              
@@ -422,14 +430,17 @@ class SimInterface():
         # here I load the environment script if is specified in the json file
         if(conf_file_json['env_pybullet']['env_script_name']):
             # here I build the path to the script which is in the env
-            path_to_env = os.path.join(os.path.dirname(__file__),os.pardir,'env_scripts',conf_file_json['env_pybullet']['env_script_name'])
+            if conf_file_path_ext: #CHANGE
+                path_to_env = os.path.join(conf_file_path_ext,'env_scripts',conf_file_json['env_pybullet']['env_script_name']) #CHANGE
+            else: #CHANGE
+                path_to_env = os.path.join(os.path.dirname(__file__),os.pardir,'env_scripts',conf_file_json['env_pybullet']['env_script_name'])
             self.LoadEnv(path_to_env)
 
         # here I create the robot object lists
         self.bot=[]
         if isinstance(conf_file_json['robot_pybullet']['urdf_path'], list):
             for i in  range(len(conf_file_json['robot_pybullet']['urdf_path'])):
-                bot = SimRobot(self.pybullet_client,conf_file_json,i)
+                bot = SimRobot(self.pybullet_client,conf_file_json,i,conf_file_path_ext) #CHANGE
                 self.bot.append(bot)
         else:
             raise TypeError("Expected 'urdf_path' to be a list but got {}".format(type(conf_file_json['robot_pybullet']['urdf_path']).__name__))
