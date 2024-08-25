@@ -76,20 +76,17 @@ Here is a full example of how to use the package in your projects:
 ```python
 import numpy as np
 import time
-import tqdm
+import os
+import simulation_and_control as sac
 from simulation_and_control.sim import pybullet_robot_interface as pb
 from simulation_and_control.controllers.servo_motor import MotorCommands
 from simulation_and_control.controllers.pin_wrapper import PinWrapper
 
 def main():
-    # Initial warning messages
-    print("WARNING: this code executes low-level controller on the robot.")
-    print("Make sure the robot is hang on rack before proceeding.")
-    input("Press enter to continue...")
-
     # Configuration for the simulation
-    conf_file_name = "single_pandaconfig.json"  # Configuration file for the robot
-    sim = pb.SimInterface(conf_file_name)  # Initialize simulation interface
+    conf_file_name = "elephantconfig.json"  # Configuration file for the robot
+    cur_dir = os.path.dirname(os.path.abspath(__file__))
+    sim = pb.SimInterface(conf_file_name, conf_file_path_ext = cur_dir)  # Initialize simulation interface
 
     # Get active joint names from the simulation
     ext_names = sim.getNameActiveJoints()
@@ -98,7 +95,7 @@ def main():
     source_names = ["pybullet"]  # Define the source for dynamic modeling
 
     # Create a dynamic model of the robot
-    dyn_model = PinWrapper(conf_file_name, "pybullet", ext_names, source_names, True)
+    dyn_model = PinWrapper(conf_file_name, "pybullet", ext_names, source_names, False,0,cur_dir)
 
     # Display dynamics information
     print("Joint info simulator:")
@@ -116,9 +113,10 @@ def main():
         cmd.tau_cmd = np.zeros((dyn_model.getNumberofActuatedJoints(),))  # Zero torque command
         sim.Step(cmd, "torque")  # Simulation step with torque command
 
-        if dyn_model.pin_model_vis:  # Conditionally display the robot model
-            q = [sim.GetMotorAngles(index) for index in range(len(sim.bot))]
-            dyn_model.DisplayModel(q)  # Update the display of the robot model
+        if dyn_model.visualizer: 
+            for index in range(len(sim.bot)): # Conditionally display the robot model
+                q = sim.GetMotorAngles(index)
+                dyn_model.DisplayModel(q)  # Update the display of the robot model
 
         # Exit logic with 'q' key
         keys = sim.GetPyBulletClient().getKeyboardEvents()

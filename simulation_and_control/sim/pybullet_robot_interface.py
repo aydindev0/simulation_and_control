@@ -606,13 +606,16 @@ class SimInterface():
     def _SetMotorTorqueByIds(self, motor_control_mode, motor_ids, commands, index=0):
 
         # here i check if the commands is non empty and then i apply the torque to the joints
-        if(commands.tolist()[0]):
+        if(commands.size>0): #CHANGE
+            # check if commands is multidimensional
+            if len(commands.shape) > 1: #CHANGE
+                raise ValueError("Expected 'commands' to be a 1D array but got a {}D array".format(len(commands.shape))) #CHANGE
             control_mode=self.pybullet_client.TORQUE_CONTROL
             self.pybullet_client.setJointMotorControlArray(
             bodyIndex=self.bot[index].bot_pybullet,
             jointIndices=motor_ids,
             controlMode=control_mode,
-            forces=commands.tolist()[0])
+            forces=commands.tolist()) #CHANGE
 
     
     def _SetDesiredMotorAngleByName(self, motor_name, desired_angle, index=0):
