@@ -201,12 +201,16 @@ class PinWrapper():
             self.n = self.n_q + self.n_b
             self.n_dot = self.n_qdot + self.n_bdot
         
-        if self.visualizer:
-             self.collision_model = pin.buildGeomFromUrdf(self.pin_model, urdf_file, pin.GeometryType.COLLISION)
-             self.visual_model = pin.buildGeomFromUrdf(self.pin_model, urdf_file, pin.GeometryType.VISUAL)
-             self.viz = GepettoVisualizer(self.pin_model, self.collision_model , self.visual_model)
-             self.viz.initViewer()
-             self.viz.loadViewerModel("pinocchio")
+        if self.visualizer: 
+            package_dir= os.path.dirname(urdf_file)  
+            print("package_dir=",package_dir)     
+            self.collision_model = pin.buildGeomFromUrdf(self.pin_model,urdf_file,pin.GeometryType.COLLISION,package_dir)
+            #self.collision_model = pin.buildGeomFromUrdf(self.pin_model, urdf_file, pin.GeometryType.COLLISION)
+            self.visual_model = pin.buildGeomFromUrdf(self.pin_model,urdf_file,pin.GeometryType.VISUAL,package_dir)
+            #self.visual_model = pin.buildGeomFromUrdf(self.pin_model, urdf_file, pin.GeometryType.VISUAL)
+            self.viz = GepettoVisualizer(self.pin_model, self.collision_model , self.visual_model)
+            self.viz.initViewer()
+            self.viz.loadViewerModel("pinocchio")
             
     # here the assumption is that name of the joints follow the same order as in the coomputation of the robot dynamics in pinocchio
     # with data_source_names i can create multiple joint index conversion from and to pinocchio 
@@ -615,7 +619,8 @@ class PinWrapper():
     
     def DisplayModel(self,q):
         if(self.visualizer):
-            self.viz.display(q)
+            q_ = self.ReoderJoints2PinVec(q,"pos")
+            self.viz.display(q_)
         else:
             print("Visualizer not initialized")
 
