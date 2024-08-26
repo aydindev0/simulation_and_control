@@ -1064,8 +1064,8 @@ class SimInterface():
             #com_floating_base_ori = self.quaternionProduct(link_floating_base_ori,self.bot.base_link_2_com_ori_offset)
             return link_floating_base_ori
     
-    def  GetInitMotorAngles(self):
-        return self.bot.init_joint_angles
+    def  GetInitMotorAngles(self,index=0):
+        return self.bot[index].init_joint_angles
 
 
     def GetTimeSinceReset(self):
