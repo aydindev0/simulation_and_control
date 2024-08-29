@@ -773,3 +773,14 @@ class PinWrapper():
     def GetConfigurationVariable(self,param):
         first_param = "robot_"+self.simulator
         return self.conf[first_param][param]
+    
+    
+    def ComputeDyanmicRegressor(self,q,qd,qdd):
+        # reorder from external to pinocchio
+        q_ = self.ReoderJoints2PinVec(q,"pos")
+        qd_ = self.ReoderJoints2PinVec(qd,"vel")
+        qdd_ = self.ReoderJoints2PinVec(qdd,"vel")
+        
+        
+        R = pin.computeJointTorqueRegressor(self.pin_model, self.pin_data, q_, qd_, qdd_)
+        return R
