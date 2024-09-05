@@ -63,28 +63,33 @@ def CartesianDiffKin(dyn_model,controlled_frame_name,cur_q, p_des, pd_des,ori_de
     J_linear = dyn_model.res.J[:3, :]
     J_angular = dyn_model.res.J[3:, :]
 
-    # compute ori des in quaternion
-    #Cur_R =pin.rpy.rpyToMatrix(cur_cartesian_ori)
-    cur_quat = pin.Quaternion(Cur_R)
-    cur_quat = cur_quat.normalize()
-    ori_des_quat = pin.Quaternion(ori_des)
-    ori_des_quat = ori_des_quat.normalize()
+    # here i check if the desired orientation (ori_des) 
+    if ori_des is None:
+        # i set the angle error to zero
+        angle_error_base_frame = np.zeros(3)
+    else:
+        # compute ori des in quaternion
+        #Cur_R =pin.rpy.rpyToMatrix(cur_cartesian_ori)
+        cur_quat = pin.Quaternion(Cur_R)
+        cur_quat = cur_quat.normalize()
+        ori_des_quat = pin.Quaternion(ori_des)
+        ori_des_quat = ori_des_quat.normalize()
 
-    # Ensure quaternion is in the same hemisphere as the desired orientation
-    cur_quat_coeff = cur_quat.coeffs()
-    ori_des_quat_coeff = ori_des_quat.coeffs()
-    if np.dot(cur_quat_coeff, ori_des_quat_coeff) < 0.0:
-        cur_quat_coeff = cur_quat_coeff * -1.0
-        cur_quat = pin.Quaternion(cur_quat_coeff)
+        # Ensure quaternion is in the same hemisphere as the desired orientation
+        cur_quat_coeff = cur_quat.coeffs()
+        ori_des_quat_coeff = ori_des_quat.coeffs()
+        if np.dot(cur_quat_coeff, ori_des_quat_coeff) < 0.0:
+            cur_quat_coeff = cur_quat_coeff * -1.0
+            cur_quat = pin.Quaternion(cur_quat_coeff)
 
-    # Compute the "difference" quaternion (assuming orientation_d is also a pin.Quaternion object)
-    angle_error_quat = cur_quat.inverse() * ori_des_quat
-    # extract coefficient x y z from the quaternion
-    angle_error = angle_error_quat.coeffs()
-    angle_error = angle_error[:3]
-    
-    # rotate the angle error in the base frame
-    angle_error_base_frame = Cur_R@angle_error
+        # Compute the "difference" quaternion (assuming orientation_d is also a pin.Quaternion object)
+        angle_error_quat = cur_quat.inverse() * ori_des_quat
+        # extract coefficient x y z from the quaternion
+        angle_error = angle_error_quat.coeffs()
+        angle_error = angle_error[:3]
+        
+        # rotate the angle error in the base frame
+        angle_error_base_frame = Cur_R@angle_error
 
 
     # computing position error
