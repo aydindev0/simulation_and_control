@@ -3,7 +3,7 @@ import numpy as np
 import pinocchio as pin
 
 
-def applyJointVelSaturation(self,qd_des,joint_vel_saturation):
+def applyJointVelSaturation(qd_des,joint_vel_saturation):
     """
     Apply joint velocity saturation to the desired joint velocity.
     
