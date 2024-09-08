@@ -29,6 +29,10 @@
 # I need to add the possibility to not have a specified CoM position and orientation and use only the one provided by the URDF
 
 
+# reminder for delay in the simulation:
+# all the functions affected by the delay are:
+
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -114,11 +118,12 @@ class SimRobot():
         self._LoadPybulletURDF(urdf_path, pybullet_client,index) #(self.conf['robot']["urdf_path"], pybullet_client)
 
         self.num_motors = len(self.active_joint_ids)
-
         # here i set the desired foot friction and restitution
         self.SetFootFriction(pybullet_client, self.conf['robot_pybullet']['foot_friction'][index])
         self.SetFootRestitution(pybullet_client, self.conf['robot_pybullet']['foot_restitution'][index])
         
+        self.link_floating_base_ori = self.bot[index].conf['robot_pybullet']["init_link_base_orientation"][index]
+        self.link_floating_base_pos = self.bot[index].conf['robot_pybullet']["init_link_base_position"][index]
         _, self.init_orientation_inv = pybullet_client.invertTransform(position=[0, 0, 0], orientation=self._GetDefaultInitOrientation())
 
         if len(self.conf['robot_pybullet']["motor_offset"][index]) == 0:
@@ -145,6 +150,19 @@ class SimRobot():
 
         self.servo_motor_model = ServoMotorModel(len(self.active_joint_ids), self.conf['robot_pybullet']["servo_pos_gains"][index], self.conf['robot_pybullet']["servo_vel_gains"][index],
                                                  friction_torque=self.conf['robot_pybullet']['motor_friction'][index], friction_coefficient=self.conf['robot_pybullet']['motor_friction_coeff'][index])
+        
+
+
+        # adding delay measures in the simulation
+        # i want to be sure that i have a delay only if the flag is up
+        self.delay_measure_flag = self.conf['robot_pybullet']['delay_measure_flag'][index]
+        if self.delay_measure_flag:
+            # Define the delay in terms of steps
+            self.delay_steps = self.conf['robot_pybullet']['delay_measure_steps'][index]   # i do minus one because i will always have at least the previous state
+        else:
+            self.delay_steps = 0
+        self.state_buffer = collections.deque(maxlen=self.delay_steps + 1) # +1 to include the current state
+
 
     def _UrdfPath(self,index,config_file_path_ext: str = None): #CHANGE
         global missing_robot_description
@@ -458,8 +476,6 @@ class SimInterface():
         # variable to manage the simulator behaviour
         self.step_counter = 0
 
-        # reset_time=-1.0 means skipping the reset motion.
-        # See Reset for more details.
 
         #self.Reset(reset_time=reset_time)
         self.observation_history=collections.deque(maxlen=100)
@@ -477,6 +493,7 @@ class SimInterface():
 
     ## simulation functions -------------------------------------------------------------------------
     # reading data from the simulator
+    #TODO omogenize using the historical state to manage current state previous and any state with a delay 
     def ReceiveObservation(self):
         for j in  range(len(self.bot)):
             """Receive the observation from sensors.
@@ -487,24 +504,26 @@ class SimInterface():
             # update previous state
             if self.step_counter > 0:    
                 #prev motor angles
-                self.bot[j].prev_motor_angles = self.GetMotorAngles(j)
+                
+                self.bot[j].prev_motor_angles = self.bot[j].motor_angles # self.GetMotorAngles(j)
                 # prev motor velocities
-                self.bot[j].prev_motor_vel = self.GetMotorVelocities(j)
+                self.bot[j].prev_motor_vel =  self.bot[j].motor_velocities #self.GetMotorVelocities(j)
                 # prev base position and orientation
-                self.bot[j].prev_base_position = self.GetBasePosition(j)
-                self.bot[j].prev_base_orientation = self.GetBaseOrientation(j)
-                self.bot[j].prev_base_lin_vel = self.GetBaseLinVelocity(j)
-                self.bot[j].prev_base_ang_vel = self.GetBaseAngVelocity(j)
+                self.bot[j].prev_base_position = self.bot[j].base_position #self.GetBasePosition(j)
+                self.bot[j].prev_base_orientation = self.bot[j].base_orientation #self.GetBaseOrientation(j)
+                self.bot[j].prev_base_lin_vel = self.bot[j].base_lin_vel  #self.GetBaseLinVelocity(j)
+                self.bot[j].prev_base_ang_vel = self.bot[j].base_ang_vel  #self.GetBaseAngVelocity(j)
                 # prev base velocities in base frame
-                self.bot[j].prev_base_lin_vel_base_frame = self.GetBaseLinVelocityBodyFrame(j)
-                self.bot[j].prev_base_ang_vel_base_frame = self.GetBaseAngVelocityBodyFrame(j)
+                self.bot[j].prev_base_lin_vel_base_frame = self.bot[j].base_lin_vel_body_frame  #self.GetBaseLinVelocityBodyFrame(j)
+                self.bot[j].prev_base_ang_vel_base_frame = self.bot[j].base_ang_vel_body_frame  #self.GetBaseAngVelocityBodyFrame(j)
             else:
                 self.bot[j].prev_motor_angles = self.bot[j].init_joint_angles
                 # prev motor velocities
                 self.bot[j].prev_motor_vel = self.bot[j].init_joint_vel
+                self.bot[j].prev_motor_accelerations = np.zeros(len(self.bot[j].active_joint_ids))
                 # prev base position and orientation
-                self.bot[j].prev_base_position = self._GetConfInitPosition(j)
-                self.bot[j].prev_base_orientation = self._GetConfInitOrientation(j)
+                self.bot[j].prev_base_position = self.bot[j].link_floating_base_pos
+                self.bot[j].prev_base_orientation = self.bot[j].link_floating_base_ori
                 if self.bot[j].conf['robot_pybullet']['init_link_base_vel'] and self.bot[j].conf['robot_pybullet']['init_link_base_ang_vel']:
                     self.bot[j].prev_base_lin_vel = self.bot[j].conf['robot_pybullet']['init_link_base_vel']
                     self.bot[j].prev_base_ang_vel = self.bot[j].conf['robot_pybullet']['init_link_base_ang_vel']
@@ -513,7 +532,9 @@ class SimInterface():
                 #self.bot[j].prev_base_ang_vel_base_frame = self.GetBaseAngVelocityBodyFrame(j)
 
             # update of the current state    
-            self.bot[j].joint_states = self.pybullet_client.getJointStates(self.bot[j].bot_pybullet, self.bot[j].active_joint_ids)
+            self.bot[j].motor_angles = self.ExtractMotorAngles(j)
+            self.bot[j].motor_velocities = self.ExtractMotorVelocities(j)
+            self.bot[j].motor_accelerations = self.ComputeMotorAccelerationTMinusOne(j)
             #  TODO DEBUG TOCHECK apparently this function return position and orientation of the center of mass of the robot
             # not the floating joint position and orientation (which i guess is the one used by the pinocchio model)
             self.bot[j].base_position, self.bot[j].base_orientation = (self.pybullet_client.getBasePositionAndOrientation(self.bot[j].bot_pybullet))
@@ -531,11 +552,28 @@ class SimInterface():
             #     orientationB=self.bot.init_orientation_inv)
             # body velocities world frame
             self.bot[j].base_lin_vel, self.bot[j].base_ang_vel = self.pybullet_client.getBaseVelocity(self.bot[j].bot_pybullet)
-            self.bot[j].base_ang_vel = np.asarray(self.bot[j].base_ang_vel)
             self.bot[j].base_lin_vel = np.asarray(self.bot[j].base_lin_vel)
+            self.bot[j].base_ang_vel = np.asarray(self.bot[j].base_ang_vel)
             # body velocities base frame
-            self.bot[j].base_lin_vel_body_frame, self.bot[j].base_ang_vel_body_frame = self.GetBaseVelocitiesBodyFrame(j)
-            self.observation_history.appendleft(self.GetAllObservation())
+            self.bot[j].base_lin_vel_body_frame, self.bot[j].base_ang_vel_body_frame = self.ComputeBaseVelocitiesBodyFrame(j)
+            
+            #### UPDATING CURRENT STATE FOR MANAGING DELAY IN THE SIMULATION #### ------------------------------
+           
+            current_state = {
+            'motor_angles':self.bot[j].motor_angles,
+            'motor_velocities':self.bot[j].motor_velocities,
+            'motor_accelerations':self.bot[j].motor_accelerations,
+            'base_position': self.bot[j].base_position,
+            'base_orientation': self.bot[j].base_orientation,
+            'base_lin_vel': self.bot[j].base_lin_vel,
+            'base_ang_vel': self.bot[j].base_ang_vel,
+            'base_lin_vel_body_frame': self.bot[j].base_lin_vel_body_frame,
+            'base_ang_vel_body_frame': self.bot[j].base_ang_vel_body_frame
+            }
+            self.bot[j].state_buffer.appendleft(current_state)  # Update the buffer
+        
+        # get all observation take all the observation for all the robots   
+        self.observation_history.appendleft(self.GetAllObservation())
             
     # sending command to the simulator
     # function to advance the simulation every time step
@@ -651,9 +689,9 @@ class SimInterface():
        
             # reset position and orientation to the one specified in the configuration file
             # TODO check if it works for the fixed base as well 
-            self.pybullet_client.resetBasePositionAndOrientation(self.bot[j].bot_pybullet, self._GetConfInitPosition(j), self._GetConfInitOrientation(j))
+            self.pybullet_client.resetBasePositionAndOrientation(self.bot[j].bot_pybullet, self.bot[j].link_floating_base_pos, self.bot[j].link_floating_base_ori)
             # here I update the the init_orientation_inv with the actual initial com orientation of the floating body 
-            _, self.bot[j].init_orientation_inv = self.pybullet_client.invertTransform(position=[0, 0, 0], orientation=self._GetConfInitOrientation(j))
+            _, self.bot[j].init_orientation_inv = self.pybullet_client.invertTransform(position=[0, 0, 0], orientation=self.bot[j].link_floating_base_ori)
             
             if(self.bot[j].base_type=="floating"):
                 # setting initil com velocity of the robot (if specified in the config file)
@@ -756,21 +794,21 @@ class SimInterface():
         return contacts
     
      # dynamics methods --------------------------------------------------------------------------------
-    def ComputeMassMatrixRNEA(self,previous_state=False):
+    def ComputeMassMatrixRNEA(self,previous_state=False,index=0):
         if(self.bot.base_type=="fixed"):
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState(True)
+                x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
-                x,xdot = self.GetSystemState(True)
+                x,xdot = self.GetSystemStateInternal(True,index)
             M = np.zeros((len(xdot), len(xdot)))
             xdot_zero    = [0] * len(xdot)
             xdotdot_zero = [0] * len(xdot)
-            gravity = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero))
+            gravity = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero))
             gravity = np.delete(gravity, 6, 0)
             for i in range(len(xdot)):
                 cur_accels = np.zeros(len(xdot))
                 cur_accels[i] = 1
-                cur_M_col = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_zero, cur_accels.tolist())) - gravity
+                cur_M_col = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot_zero, cur_accels.tolist())) - gravity
                 M[:, i] = cur_M_col
             return M
 
@@ -791,21 +829,21 @@ class SimInterface():
             # M = np.delete(M, 6, 1)
             # return M
     
-    def ComputeMassMatrix(self,previous_state=False):
+    def ComputeMassMatrix(self,previous_state=False,index=0):
         if(self.bot.base_type=="fixed"):
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState(True)
+                x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
-                x,xdot = self.GetSystemState(True)
-            M = self.pybullet_client.calculateMassMatrix(self.bot.bot_pybullet,x.tolist())
+                x,xdot = self.GetSystemStateInternal(True,index)
+            M = self.pybullet_client.calculateMassMatrix(self.bot[index].bot_pybullet,x.tolist())
             return np.asarray(M)
         else:
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState()
+                x,xdot = self.GetSystemPreviousStateInternal()
             else:
-                x,xdot = self.GetSystemState()
+                x,xdot = self.GetSystemStateInternal()
             """Computes the mass matrix of the robot."""
-            M = self.pybullet_client.calculateMassMatrix(self.bot.bot_pybullet,x.tolist(),flags=1)
+            M = self.pybullet_client.calculateMassMatrix(self.bot[index].bot_pybullet,x.tolist(),flags=1)
             # remove the 7th row because it is zero (that's how pybullet works with flag=1)
             M = np.delete(M, 6, 0)
             # remove the 7th column because it is zero (that's how pybullet works with flag=1)
@@ -814,38 +852,38 @@ class SimInterface():
             #M = self.pybullet_client.calculateMassMatrix(self.bot.bot_pybullet,x.tolist())
             return np.asarray(M)
     
-    def ComputeCoriolisAndGravityForces(self,previous_state=False):
+    def ComputeCoriolisAndGravityForces(self,previous_state=False,index=0):
         """Computes the Coriolis and gravity forces."""
         if(self.bot.base_type=="fixed"):
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState(True)
+                x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
-                x,xdot = self.GetSystemState(True)
-            return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero))
+                x,xdot = self.GetSystemStateInternal(True)
+            return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero))
         else:
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState()
+                x,xdot = self.GetSystemPreviousStateInternal()
             else:
-                x,xdot = self.GetSystemState()
+                x,xdot = self.GetSystemStateInternal()
         xdotdot_zero = [0] * len(xdot) + 1
-        return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero,flags=1))
+        return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero,flags=1))
     
     # with this flag base_velocity_in_base_frame we can compute the gravity action on the base but in the base frame
-    def ComputeGravity(self,base_velocity_in_base_frame=False,previous_state=False):
+    def ComputeGravity(self,base_velocity_in_base_frame=False,previous_state=False,index=0):
         grav = []
         if(self.bot.base_type=="fixed"):
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState(True)
+                x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
-                x,xdot = self.GetSystemState(True)
+                x,xdot = self.GetSystemStateInternal(True)
             xdot_zero    = [0] * len(xdot)
             xdotdot_zero = [0] * len(xdot)
-            return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero))
+            return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero))
         else:
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState()
+                x,xdot = self.GetSystemPreviousStateInternal()
             else:
-                x,xdot = self.GetSystemState()
+                x,xdot = self.GetSystemStateInternal()
             xdot_zero    = [0] * (len(xdot) + 1)
             xdotdot_zero = [0] * (len(xdot) + 1) 
             grav = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero, flags=1))
@@ -859,7 +897,7 @@ class SimInterface():
             #TODO check if this one is ok for the rotational part
             if(base_velocity_in_base_frame):
                 sim_base_gravity_pos = grav[:3,]
-                sim_base_gravity_pos = self.TransformWorld2Body(sim_base_gravity_pos)
+                sim_base_gravity_pos = self.TransformWorld2Body(sim_base_gravity_pos,index)
                 sim_base_gravity_ori = grav[3:6,]
                 sim_base_gravity_ori = self.TransformAngularVelocityToLocalFrame(sim_base_gravity_ori)
                 # here we reassemble the gravity vector in the body frame
@@ -867,28 +905,28 @@ class SimInterface():
                 grav[:6,] = sim_base_gravity
             return grav
         
-    def ComputeCoriolis(self,base_velocity_in_base_frame=False,previous_state=False):
+    def ComputeCoriolis(self,base_velocity_in_base_frame=False,previous_state=False,index=0):
         """Computes the Coriolis forces."""
         if(self.bot.base_type=="fixed"):
             if(previous_state):
-                x,xdot = self.GetSystemPreviousState(True)
+                x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
-                x,xdot = self.GetSystemState(True)
+                x,xdot = self.GetSystemStateInternal(True)
             xdot_zero    = [0] * (len(xdot))
             xdotdot_zero = [0] * (len(xdot))
-            gravity = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero))
-            coriolis = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero)) - gravity
+            gravity = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero))
+            coriolis = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero)) - gravity
             return coriolis
         else:
-            x,xdot = self.GetSystemState()
+            x,xdot = self.GetSystemStateInternal()
             # I need to add a zero to the velocity vector because pybullet calculateInverseDynamics expect a vector of 7 elements for the base velocity 
             xdot_new = np.zeros((len(xdot) + 1))
             xdot_new[:6,] = xdot[:6,]
             xdot_new[7:,] = xdot[6:,]
             xdot_zero    = [0] * (len(xdot) + 1)
             xdotdot_zero = [0] * (len(xdot) + 1)
-            gravity = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero,flags=1))
-            coriolis = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot.bot_pybullet, x.tolist(), xdot_new.tolist(), xdotdot_zero,flags=1)) - gravity
+            gravity = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot_zero, xdotdot_zero,flags=1))
+            coriolis = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot_new.tolist(), xdotdot_zero,flags=1)) - gravity
             coriolis = np.delete(coriolis, 6, 0)
             # wrong version kept only just in case the code is updated in the future
             # xdot_zero    = [0] * (len(xdot))
@@ -899,7 +937,7 @@ class SimInterface():
             #TODO check if this one is right for the velocity part 
             if(base_velocity_in_base_frame): 
                 sim_base_coriolis_pos = coriolis[:3,]
-                sim_base_coriolis_pos = self.TransformWorld2Body(sim_base_coriolis_pos)
+                sim_base_coriolis_pos = self.TransformWorld2Body(sim_base_coriolis_pos,index)
                 sim_base_coriolis_ori = coriolis[3:6,]
                 sim_base_coriolis_ori = self.TransformAngularVelocityToLocalFrame(sim_base_coriolis_ori)
                 # here we reassemble the gravity vector in the body frame
@@ -965,36 +1003,38 @@ class SimInterface():
     #     return  body_twist[3:], body_twist[:3]
     
     
-    def TransformWorld2Body(self, world_value):
+    def TransformWorld2Body(self, world_value,index=0):
         """Transform the value from world frame to body frame.
         Args:
           world_vector: The value in world frame.
         Returns:
           The value in body frame.
         """
-        for j in  range(len(self.bot)):
-            base_orientation = self.GetBaseOrientation(j)
-
-            _, inverse_rotation = self.pybullet_client.invertTransform(
-            (0, 0, 0), base_orientation)
-
-            pos, _ = self.pybullet_client.multiplyTransforms((0, 0, 0), inverse_rotation, world_value, (0, 0, 0, 1))
-
-            return np.array(pos)
         
-    def TransformBody2World(self, body_value):
+        #base_orientation = self.GetBaseOrientation(j)
+        base_orientation = self.bot[index].base_orientation
+
+        _, inverse_rotation = self.pybullet_client.invertTransform(
+        (0, 0, 0), base_orientation)
+
+        pos, _ = self.pybullet_client.multiplyTransforms((0, 0, 0), inverse_rotation, world_value, (0, 0, 0, 1))
+
+        return np.array(pos)
+        
+    def TransformBody2World(self, body_value,index=0):
         """Transform the value from world frame to body frame.
         Args:
           world_vector: The value in world frame.
         Returns:
           The value in body frame.
         """
-        for j in  range(len(self.bot)):
-            base_orientation = self.GetBaseOrientation(j)
+        
+        #base_orientation = self.GetBaseOrientation(j)
+        base_orientation = self.bot[index].base_orientation
 
-            pos, _ = self.pybullet_client.multiplyTransforms((0, 0, 0), base_orientation, body_value, (0, 0, 0, 1))
+        pos, _ = self.pybullet_client.multiplyTransforms((0, 0, 0), base_orientation, body_value, (0, 0, 0, 1))
 
-            return np.array(pos)
+        return np.array(pos)
 
     def TransformAngularVelocityToLocalFrame(self, angular_velocity,
                                              orientation):
@@ -1039,99 +1079,18 @@ class SimInterface():
 
     # # get and set functions ---------------------------------------------------------------------------------------
     
-    
+    #### IMPORTANT #### anything that is get under here refer to functions that provide values outside the simulator (for the controller)
+    # also function that are get and depends on other get are still valid (for example getstate())
     def GetPyBulletClient(self):
         return self.pybullet_client
     
     def GetTimeStep(self):
         return self.time_step
     
-    # here we assume the initial position is the link position and not the com position
-    # I need to do the convesion from the floating base of the link to the one of the com
-    def _GetConfInitPosition(self,index):
-            link_floating_base_pos = self.bot[index].conf['robot_pybullet']["init_link_base_position"][index]
-            # i need to find the com position correspoding to the current link floating base position
-            #pos, _ = self.pybullet_client.multiplyTransforms((0, 0, 0), self.bot.conf['robot_pybullet']["init_link_base_orientation"], self.bot.base_link_2_com_pos_offset, (0, 0, 0, 1))
-            #com_floating_base_pos = link_floating_base_pos + pos
-            return link_floating_base_pos
-   
-    
-    # here we assume the initial position is the link position and not the com position
-    # I need to do the conversion from the floating base of the link to the one of the com
-    def _GetConfInitOrientation(self,index):
-            link_floating_base_ori = self.bot[index].conf['robot_pybullet']["init_link_base_orientation"][index]
-            # here i need to compose the rotation to get the orientation of the frame attached to the CoM (i think the rotation offset between link and com is always the identity)
-            #com_floating_base_ori = self.quaternionProduct(link_floating_base_ori,self.bot.base_link_2_com_ori_offset)
-            return link_floating_base_ori
-    
-    def  GetInitMotorAngles(self,index=0):
-        return self.bot[index].init_joint_angles
-
 
     def GetTimeSinceReset(self):
         return self.step_counter * self.time_step
 
-    def GetFootLinkIDs(self):
-        """Get list of IDs for all foot links."""
-        return self.bot.foot_link_ids
-    
-    # this function returna dictionary where each element is the full GRF vector (6x1) for every feet Independtly if the feet is in contact or not (local frame)
-    def getFeetGRFLocal(self):
-        return self.bot.feet_grf_local
-    # this function the full GRF vector (6x1) for one foot Independtly if the foot is in contact or not (local frame)
-    def GetFootGRFLocal(self,foot):
-        return self.bot.feet_grf_local[foot]
-    
-    # this function returna dictionary where each element is the full GRF vector (6x1) for every feet Independtly if the feet is in contact or not (world frame)
-    def getFeetGRFWolrd(self):
-        return self.bot.feet_grf_world
-    # this function the full GRF vector (6x1) for one foot Independtly if the foot is in contact or not (world frame)
-    def GetFootGRFWolrd(self,foot):
-        return self.bot.feet_grf_world[foot]
-    
-    # TODO add this fucntion to 
-    def ComputeFootGRF(self):
-        GRF ={}
-        for key, value in self.foot_link_sensors_ids.items():
-            GRF[key] = self.pybullet_client.getJointState(self.bot.bot_pybullet, value)[2]
-        return GRF
-     
-    def GetMotorAngles(self,index):
-        """Gets the eight motor angles at the current moment
-
-    Returns:
-      Motor angles
-    """ 
-        motor_angles = []
-        # if self.bot.joint_states is not empty
-        if self.bot[index].joint_states:
-            motor_angles = [state[0] for state in self.bot[index].joint_states]
-            motor_angles = np.multiply(
-                np.asarray(motor_angles) - np.asarray(self.bot[index].motor_offset),
-                self.bot[index].motor_direction)
-        
-        return motor_angles
-
-    def GetMotorVelocities(self,index):
-        """Get the velocity of all eight motors.
-
-    Returns:
-      Velocities of all eight motors.
-    """
-        motor_velocities = []
-        if self.bot[index].joint_states:
-            motor_velocities = [state[1] for state in self.bot[index].joint_states]
-            motor_velocities = np.multiply(motor_velocities, self.bot[index].motor_direction)
-        return motor_velocities
-
-    def getMotorAccelerationTMinusOne(self,index):
-        """Get the acceleration of all the motors. at the previous time step"""
-        if self.bot[index].num_motors == 0:
-            return np.zeros(self.bot[index].num_motors)
-        else:
-            motor_acceleration = (self.GetMotorVelocities(index) - self.bot[index].prev_motor_vel) / self.time_step
-            return np.squeeze(motor_acceleration)
-    
     #with this function i can get the position and orientation of any robot link in world frame
     # link_or_com = allows to choose if the position and orientation of the joint which the link is attached to
     #  or the link CoM is returned (world frame)
@@ -1167,44 +1126,148 @@ class SimInterface():
             link_pos_floating_base_world, link_ori_floating_base_world = self.GetLinkPositionAndOrientation(link_name, "joint")
             return link_pos_floating_base_world, link_ori_floating_base_world
 
+    # here we assume the initial position is the link position and not the com position
+    # I need to do the convesion from the floating base of the link to the one of the com
+    def GetConfInitPosition(self,index):
+            #link_floating_base_pos = self.bot[index].conf['robot_pybullet']["init_link_base_position"][index]
+            # i need to find the com position correspoding to the current link floating base position
+            #pos, _ = self.pybullet_client.multiplyTransforms((0, 0, 0), self.bot.conf['robot_pybullet']["init_link_base_orientation"], self.bot.base_link_2_com_pos_offset, (0, 0, 0, 1))
+            #com_floating_base_pos = link_floating_base_pos + pos
+            return self.bot[index].link_floating_base_pos
+   
+    
+    # here we assume the initial position is the link position and not the com position
+    # I need to do the conversion from the floating base of the link to the one of the com
+    def GetConfInitOrientation(self,index):
+            #link_floating_base_ori = self.bot[index].conf['robot_pybullet']["init_link_base_orientation"][index]
+            # here i need to compose the rotation to get the orientation of the frame attached to the CoM (i think the rotation offset between link and com is always the identity)
+            #com_floating_base_ori = self.quaternionProduct(link_floating_base_ori,self.bot.base_link_2_com_ori_offset)
+            return self.bot[index].link_floating_base_ori
+    
+    def  GetInitMotorAngles(self,index=0):
+        return self.bot[index].init_joint_angles
+    
+    def GetInitMotorVelocities(self,index=0):
+        return self.bot[index].init_joint_vel
+
+
+    def ExtractMotorAngles(self, index):
+        motor_angles = []
+        cur_joint_states = self.pybullet_client.getJointStates(self.bot[index].bot_pybullet, self.bot[index].active_joint_ids)
+        # if self.bot.joint_states is not empty
+        if cur_joint_states:
+            motor_angles = [state[0] for state in cur_joint_states]
+            motor_angles = np.multiply(
+                np.asarray(motor_angles) - np.asarray(self.bot[index].motor_offset),
+                self.bot[index].motor_direction)
+        
+        return motor_angles
+    # affected by delay measurement if true
+    def GetMotorAngles(self,index):
+        """Gets the motor angles at the current moment
+
+    Returns:
+      Motor angles
+    """ 
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['motor_angles'].copy()
+        else:
+            return self.bot[index].motor_angles.copy()
+    
+    def ExtractMotorVelocities(self,index):
+        motor_velocities = []
+        cur_joint_states = self.pybullet_client.getJointStates(self.bot[index].bot_pybullet, self.bot[index].active_joint_ids)
+        if cur_joint_states:
+            motor_velocities = [state[1] for state in cur_joint_states]
+            motor_velocities = np.multiply(motor_velocities, self.bot[index].motor_direction)
+        return motor_velocities
+    # affected by delay measurement if true
+    def GetMotorVelocities(self,index):
+        """Get the velocity of all  motors.
+
+        Returns:
+        Velocities of all motors.
+        """
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['motor_velocities'].copy()
+        else:
+            return self.bot[index].motor_velocities.copy()
+
+    def ComputeMotorAccelerationTMinusOne(self,index):
+        """Get the acceleration of all the motors. at the previous time step"""
+        if self.bot[index].num_motors == 0:
+            return np.zeros(self.bot[index].num_motors)
+        else:
+            motor_acceleration = (self.ExtractMotorVelocities(index) - self.bot[index].prev_motor_vel) / self.time_step
+            return np.squeeze(motor_acceleration)
+        
+    # affected by delay measurement if true
+    def GetMotorAccelerationTMinusOne(self,index):
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['motor_acceleration'].copy()
+        else:
+            return self.bot[index].motor_acceleration.copy()
+    
+    
+    # affected by delay measurement if true
     def GetBasePosition(self,index=0):
         """Get the position of minitaur's base.
 
     Returns:
       The position of the robot's base.
-    """
-        return  self.bot[index].base_position.copy()
+    """ 
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_position'].copy()
+        else:
+            return  self.bot[index].base_position.copy()
     
+    # affected by delay measurement if true
     def GetBaseOrientation(self,index=0):
         """Get the orientation of minitaur's base, represented as quaternion.
 
         Returns:
         The orientation of minitaur's base.
         """
-        return self.bot[index].base_orientation.copy()
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_orientation'].copy()
+        else:
+            return self.bot[index].base_orientation.copy()
         
 
     # the base linear velocity is filtered (world frame)
+    # affected by delay measurement if true
     def GetBaseLinVelocity(self,index=0):
         """Get the linear velocity of quadruped base.
 
     Returns:
       The velocity of the robot's base.
     """
-        return self.bot[index].base_lin_vel 
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_lin_vel'].copy()
+        else:
+            return self.bot[index].base_lin_vel 
     
-    def GetPdot(self):
+    def ComputePdot(self,index=0):
         """Get the linear velocity of quadruped base."""
-        pDot = (np.asarray(self.GetBasePosition()) - np.asarray(self.bot.prev_base_position.copy())) / self.time_step
+        #pDot = (np.asarray(self.GetBasePosition()) - np.asarray(self.bot[index].prev_base_position.copy())) / self.time_step
+        pDot = (np.asarray(self.bot[index].base_position.copy()) - np.asarray(self.bot[index].prev_base_position.copy())) / self.time_step
         return pDot
 
         
-    def GetBaseLinAccelerationTMinusOne(self):
+    def ComputeBaseLinAccelerationTMinusOne(self,index=0):
         """Get the linear acceleration of quadruped base."""
-        base_acc = (np.asarray(self.GetBaseLinVelocity()) - np.asarray(self.bot.prev_base_lin_vel.copy())) / self.time_step
+        #base_acc = (np.asarray(self.GetBaseLinVelocity()) - np.asarray(self.bot.prev_base_lin_vel.copy())) / self.time_step
+        base_acc = (np.asarray(self.bot[index].base_lin_vel) - np.asarray(self.bot[index].prev_base_lin_vel.copy())) / self.time_step
         return base_acc
     
     # the base linear velocity is filtered (body frame) 
+    # affected by delay measurement if true
     def GetBaseLinVelocityBodyFrame(self,index=0):
         """Get the linear velocity of robot's base. in body frame
     Returns:
@@ -1212,54 +1275,74 @@ class SimInterface():
     """
        # velocity = np.array(self.GetBaseVelocity())
        # com_velocity_body_frame = self.TransformWorld2Body(velocity)
-
-        return self.bot[index].base_lin_vel_body_frame.copy()
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_lin_vel_body_frame'].copy()
+        else:
+            return self.bot[index].base_lin_vel_body_frame.copy()
     
-    def GetBaseLinAccelerationBodyFrameTMinusOne(self,index=0):
+    def ComputeBaseLinAccelerationBodyFrameTMinusOne(self,index=0):
         """Get the linear acceleration of quadruped base."""
-        base_acc = (np.asarray(self.GetBaseLinVelocityBodyFrame()) - np.asarray(self.bot[index].prev_base_lin_vel_base_frame.copy())) / self.time_step
+        base_acc = (np.asarray(self.bot[index].base_lin_vel_body_frame) - np.asarray(self.bot[index].prev_base_lin_vel_base_frame.copy())) / self.time_step
         return base_acc
         
-
+    # affected by delay measurement if true
     def GetBaseAngVelocity(self,index=0):
         """Get the linear velocity of robot's base.
 
     Returns:
       The velocity of robot's base.
     """
-        return self.bot[index].base_ang_vel.copy()
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_ang_vel'].copy()
+        else:
+            return self.bot[index].base_ang_vel.copy()
 
-    def GetBaseAngAccelerationTMinusOne(self,index=0):
+    def ComputeBaseAngAccelerationTMinusOne(self,index=0):
         """Get the ang acceleration of quadruped base."""
-        base_ang_acc = (np.asarray(self.GetBaseAngVelocity()) - np.asarray(self.bot[index].prev_base_ang_vel.copy())) / self.time_step
+        #base_ang_acc = (np.asarray(self.GetBaseAngVelocity()) - np.asarray(self.bot[index].prev_base_ang_vel.copy())) / self.time_step
+        base_ang_acc = (np.asarray(self.bot[index].base_ang_vel.copy()) - np.asarray(self.bot[index].prev_base_ang_vel.copy())) / self.time_step
         return base_ang_acc
 
-
+    # affected by delay measurement if true
     def GetBaseAngVelocityBodyFrame(self,index=0):
 
         #ang_velocity = np.array(self.GetBaseAngVelocity())
         #orientation = self.GetBaseOrientation()
         #return self.TransformAngularVelocityToLocalFrame(ang_velocity,
         #                                                 orientation)
-        return self.bot[index].base_ang_vel_body_frame.copy()
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_ang_vel_body_frame'].copy()
+        else:
+            return self.bot[index].base_ang_vel_body_frame.copy()
     
-    def GetBaseAngAccelerationBodyFrameTMinusOne(self,index=0):
+    def ComputeBaseAngAccelerationBodyFrameTMinusOne(self,index=0):
         """Get the ang acceleration of quadruped base."""
         
-        base_ang_acc_body_frame = (np.asarray(self.GetBaseAngVelocityBodyFrame()) - np.asarray(self.bot[index].prev_base_ang_vel_base_frame.copy())) / self.time_step
+        base_ang_acc_body_frame = (np.asarray(self.bot[index].base_ang_vel_body_frame) - np.asarray(self.bot[index].prev_base_ang_vel_base_frame.copy())) / self.time_step
         return base_ang_acc_body_frame
     
     # TODO if the linear velocity in world frame corrspoend to the derivative of the position (pdot in park modern robotics page 99) we can just rotate it to get the velocity in body frame for the spatial velocity
-    def GetBaseVelocitiesBodyFrame(self,index=0):
+    def ComputeBaseVelocitiesBodyFrame(self,index=0):
         """Get the velocity of robot's base."""
-        base_lin_vel_world = self.GetBaseLinVelocity(index)
-        base_ang_vel_world = self.GetBaseAngVelocity(index)
+        base_lin_vel_world = self.bot[index].base_lin_vel
+        base_ang_vel_world = self.bot[index].base_ang_vel
 
-        base_lin_vel_body = self.TransformWorld2Body(base_lin_vel_world)
-        base_ang_vel_body = self.TransformWorld2Body(base_ang_vel_world)
+        base_lin_vel_body = self.TransformWorld2Body(base_lin_vel_world,index)
+        base_ang_vel_body = self.TransformWorld2Body(base_ang_vel_world,index)
 
         #base_lin_vel_body, base_ang_vel_body = self.RotateTwistWorld2Base(base_lin_vel_world, base_ang_vel_world, self.GetBasePosition(), self.GetBaseOrientation())
         return base_lin_vel_body, base_ang_vel_body
+    
+    # affected by delay measurement if true
+    def GetBaseVelocitiesBodyFrame(self,index=0):
+        if self.bot[index].delay_measure_flag:
+            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
+                return self.bot[index].state_buffer['base_lin_vel_body_frame'].copy(), self.bot[index].state_buffer['base_ang_vel_body_frame'].copy()
+        else:
+            return self.bot[index].base_lin_vel_body_frame.copy(), self.bot[index].base_ang_vel_body_frame.copy()
     
     # def GetSystemStateAccelerationTMinusOne(self,base_frame=True):
     #     if(self.bot.base_type=="fixed"):
@@ -1275,37 +1358,38 @@ class SimInterface():
     #             qddot = self.getMotorAccelerationTMinusOne()
     #             return np.concatenate((base_acc,base_ang_acc,qddot))
             
-    def GetSystemStateAccelerationTMinusOne(self,base_frame=True):
+    def ComputeSystemStateAccelerationTMinusOne(self,base_frame=True,index=0):
         if(self.bot.base_type=="floating"):
             if(base_frame):
-                base_acc = self.GetBaseLinAccelerationBodyFrameTMinusOne()
-                base_ang_acc = self.GetBaseAngAccelerationBodyFrameTMinusOne()
+                base_acc = self.ComputeBaseLinAccelerationBodyFrameTMinusOne(index)
+                base_ang_acc = self.ComputeBaseAngAccelerationBodyFrameTMinusOne(index)
             else:
-                base_acc = self.GetBaseLinAccelerationTMinusOne()
-                base_ang_acc = self.GetBaseAngAccelerationTMinusOne()
+                base_acc = self.ComputeBaseLinAccelerationTMinusOne(index)
+                base_ang_acc = self.ComputeBaseAngAccelerationTMinusOne(index)
         else:
             # warning this is not correct for the fixed base
             print("it is not possible to provide base acceleration for the fixed base")
             
-        qddot = self.getMotorAccelerationTMinusOne()
+        #qddot = self.getMotorAccelerationTMinusOne()
+        qddot = self.bot[index].motor_acceleration.copy()
         if(self.bot.base_type=="floating"):
             return np.concatenate((base_acc,base_ang_acc,qddot))
         else:
             return qddot
             
 
-    def GetGravVecBodyFrame(self):
-        com_grav_vector_body_frame = self.TransformWorld2Body(self._com_grav_vector_world_frame)
+    def GetGravVecBodyFrame(self,index=0):
+        com_grav_vector_body_frame = self.TransformWorld2Body(self._com_grav_vector_world_frame,index)
 
         return com_grav_vector_body_frame
 
-    def GetBaseRollPitchYaw(self):
+    def ComputeBaseRollPitchYaw(self,index=0):
         """Get robot's base orientation in euler angle in the world frame.
 
     Returns:
       A tuple (roll, pitch, yaw) of the base in world frame.
     """
-        orientation = self.GetBaseOrientation()
+        orientation = self.bot[index].base_orientation
         roll_pitch_yaw = self.pybullet_client.getEulerFromQuaternion(orientation)
         return np.asarray(roll_pitch_yaw)
 
@@ -1328,8 +1412,10 @@ class SimInterface():
     #     return self.TransformAngularVelocityToLocalFrame(angular_velocity,
     #                                                      orientation)
 
-    # this function return the full system state floating base + joints and their velocities
+    # IMPORTANT only for use outside the class
+    # this function return the full system state floating base + joints and their velocities 
     # TODO check directly insside bot if the robot is fixed base or floating base
+    # affected by delay measurement if true (because of all the get functions used inside)
     def GetSystemState(self, fixed_base=False,base_vel_base_frame=False,index=0):
         pos_b = self.GetBasePosition(index)
         ori_b = self.GetBaseOrientation(index)
@@ -1360,7 +1446,43 @@ class SimInterface():
                 xdot = np.concatenate((np.asarray(vel_b), np.asarray(ang_vel_b)))
         return x, xdot
     
-    def GetSystemPreviousState(self, fixed_base=False,base_vel_base_frame=False, index=0):
+    def GetSystemStateInternal(self, fixed_base=False,base_vel_base_frame=False,index=0):
+        pos_b = self.bot[index].base_position.copy()
+        ori_b = self.bot[index].base_orientation.copy()
+
+        if(base_vel_base_frame):
+            # velocity in body frame
+            #vel_b = self.GetBaseLinVelocityBodyFrame(index)
+            vel_b = self.bot[index].base_lin_vel_body_frame.copy()
+            #ang_vel_b = self.GetBaseAngVelocityBodyFrame(index)
+            ang_vel_b = self.bot[index].base_ang_vel_body_frame.copy()
+        else:
+            # velocity in world frame
+            #vel_b = self.GetBaseLinVelocity(index)
+            vel_b = self.bot[index].base_lin_vel.copy()
+           #ang_vel_b = self.GetBaseAngVelocity(index)
+            ang_vel_b = self.bot[index].base_ang_vel.copy()
+            
+        #q = self.GetMotorAngles(index)
+        q = self.bot[index].motor_angles.copy()
+        #qdot = self.GetMotorVelocities(index)
+        qdot = self.bot[index].motor_velocities.copy()
+        
+        if(fixed_base):
+            x = q.squeeze()
+            xdot = qdot.squeeze()
+        else: 
+            if(len(q)!=0): # here i check if the robot has motors
+                x = np.concatenate((np.asarray(pos_b), np.asarray(ori_b), q.squeeze()))
+            else:
+                x = np.concatenate((np.asarray(pos_b), np.asarray(ori_b)))
+            if(len(qdot)!=0): # here i check if the robot has motors
+                xdot = np.concatenate((np.asarray(vel_b), np.asarray(ang_vel_b), qdot.squeeze()))
+            else:  
+                xdot = np.concatenate((np.asarray(vel_b), np.asarray(ang_vel_b)))
+        return x, xdot
+    
+    def GetSystemPreviousStateInternal(self, fixed_base=False,base_vel_base_frame=False, index=0):
         pos_b = self.bot[index].prev_base_position
         ori_b = self.bot[index].prev_base_orientation
 
@@ -1391,15 +1513,18 @@ class SimInterface():
                 prev_xdot = np.concatenate((np.asarray(vel_b), np.asarray(ang_vel_b)))
         return prev_x, prev_xdot
     
-    def GetAllObservation(self, index=0):
+    def GetAllObservation(self):
         for j in  range(len(self.bot)):
             observation = []
-            observation.extend(self.GetMotorAngles(j))
-            observation.extend(self.GetMotorVelocities(j))
+            observation.extend(self.bot[j].joint_angles)
+            observation.extend(self.bot[j].joint_velocities)
             observation.extend(self.GetMotorTorques(j))
-            observation.extend(self.GetBaseOrientation(j))
-            observation.extend(self.GetBasePosition(j))
-            observation.extend(self.GetBaseAngVelocityBodyFrame(j))
+            observation.extend(self.bot[j].base_position)
+            observation.extend(self.bot[j].base_orientation)
+            observation.extend(self.bot[j].base_lin_vel)
+            observation.extend(self.bot[j].base_ang_vel)
+            observation.extend(self.bot[j].base_lin_vel_body_frame)
+            observation.extend(self.bot[j].base_ang_vel_body_frame)
             return observation    
 
 
@@ -1456,6 +1581,32 @@ class SimInterface():
         self.pybullet_client.changeDynamics(self.bot[index].bot_pybullet,
                                                    link_id,
                                                    localInertiaDiagonal=inertia)
+
+    def GetFootLinkIDs(self):
+        """Get list of IDs for all foot links."""
+        return self.bot.foot_link_ids
+    
+    # this function returna dictionary where each element is the full GRF vector (6x1) for every feet Independtly if the feet is in contact or not (local frame)
+    def getFeetGRFLocal(self):
+        return self.bot.feet_grf_local
+    # this function the full GRF vector (6x1) for one foot Independtly if the foot is in contact or not (local frame)
+    def GetFootGRFLocal(self,foot):
+        return self.bot.feet_grf_local[foot]
+    
+    # this function returna dictionary where each element is the full GRF vector (6x1) for every feet Independtly if the feet is in contact or not (world frame)
+    def getFeetGRFWolrd(self):
+        return self.bot.feet_grf_world
+    # this function the full GRF vector (6x1) for one foot Independtly if the foot is in contact or not (world frame)
+    def GetFootGRFWolrd(self,foot):
+        return self.bot.feet_grf_world[foot]
+    
+    # TODO add this fucntion to 
+    def ComputeFootGRF(self):
+        GRF ={}
+        for key, value in self.foot_link_sensors_ids.items():
+            GRF[key] = self.pybullet_client.getJointState(self.bot.bot_pybullet, value)[2]
+        return GRF
+    
 
     def GetFootFriction(self,index=0):
         """Get the lateral friction coefficient of the feet."""
@@ -1746,12 +1897,12 @@ class SimInterface():
 
     # utilities functions single robot---------------------------------------------------------------------------------------
     
-    def DynamicSanityCheck1(self,pin_dynamic_model):
+    def DynamicSanityCheck1(self,pin_dynamic_model,index=0):
         """Checks if the pinocchio and pybullet dynamic models are the same."""
         if(self.bot.base_type=="fixed"):
-            x,xdot = self.GetSystemState(fixed_base=True)
+            x,xdot = self.GetSystemStateInternal(fixed_base=True,index=index)
         else:
-            x,xdot = self.GetSystemState(fixed_base=False,base_vel_base_frame=True)
+            x,xdot = self.GetSystemStateInternal(fixed_base=False,base_vel_base_frame=True,index=index)
 
         res = pin_dynamic_model.ComputeCoriolis(x, xdot)
         pin_coriolis = res.GetC()
@@ -1768,7 +1919,7 @@ class SimInterface():
         # TODO to check i should use a twist adjoint maybe not because it is only for velocities so no chance to get it comparable
         if(self.bot.base_type=="floating"):
             pin_coriolis_pos = pin_coriolis[:3,]
-            pin_coriolis_pos = self.TransformBody2World(pin_coriolis_pos)
+            pin_coriolis_pos = self.TransformBody2World(pin_coriolis_pos,index)
             pin_coriolis_ori = pin_coriolis[3:6,]
             # TODO check if using this it is gonna work for the angular acceleration contribution
             pin_coriolis_ori = self.TransformAngularVelocityToLocalFrame(pin_coriolis_ori)
@@ -1797,7 +1948,7 @@ class SimInterface():
         pin_gravity = pin_dynamic_model.ReoderJoints2ExtVec(pin_gravity,"vel")
         # TODO verify if this is correct, maybe we need to use the adjoint for the velocity? maybe not, probably not 
         if(self.bot.base_type=="floating"):
-            pin_gravity_pos = self.TransformBody2World(pin_gravity_pos)
+            pin_gravity_pos = self.TransformBody2World(pin_gravity_pos,index)
             pin_gravity_ori = pin_gravity[3:6,]
             # TODO check if using this it is gonna work for the angular acceleration contribution
             pin_gravity_ori = self.TransformAngularVelocityToLocalFrame(pin_gravity_ori)
@@ -1827,11 +1978,11 @@ class SimInterface():
 
 
     
-    def DynamicSanityCheck2(self,pin_dynamic_model,tau):
+    def DynamicSanityCheck2(self,pin_dynamic_model,tau,index=0):
         if(self.bot.base_type=="fixed"):
-            x,xdot = self.GetSystemState(fixed_base=True)
+            x,xdot = self.GetSystemStateInternal(fixed_base=True,index=index)
         else:
-            x,xdot = self.GetSystemState(fixed_base=False,base_vel_base_frame=True)
+            x,xdot = self.GetSystemStateInternal(fixed_base=False,base_vel_base_frame=True,index=index)
 
         if(self.step_counter >1):
             # we need to that because the numerical acceleration is always computed for the previous time step
@@ -1889,16 +2040,16 @@ class SimInterface():
     #         print("residual torques t-1 = ", torques_res)
 
 
-    def DynamicSanityCheck3(self,pin_dynamic_model, previous_tau):
+    def DynamicSanityCheck3(self,pin_dynamic_model, previous_tau, index=0):
         
         if(self.step_counter >1):
             if(self.bot.base_type=="fixed"):
-                prev_x,prev_xdot = self.GetSystemPreviousState(fixed_base=True)
-                cur_pos,cur_vel = self.GetSystemState(fixed_base=True,base_vel_base_frame=True)
+                prev_x,prev_xdot = self.GetSystemPreviousStateInternal(fixed_base=True)
+                cur_pos,cur_vel = self.GetSystemStateInternal(fixed_base=True,base_vel_base_frame=True,index=index)
             else:
-                prev_x,prev_xdot = self.GetSystemPreviousState(fixed_base=False,base_vel_base_frame=True)
-                _,prev_xdot_world = self.GetSystemPreviousState(fixed_base=False,base_vel_base_frame=False)
-                cur_pos,cur_vel = self.GetSystemState(fixed_base=False,base_vel_base_frame=True)
+                prev_x,prev_xdot = self.GetSystemPreviousStateInternal(fixed_base=False,base_vel_base_frame=True)
+                _,prev_xdot_world = self.GetSystemPreviousStateInternal(fixed_base=False,base_vel_base_frame=False)
+                cur_pos,cur_vel = self.GetSystemStateInternal(fixed_base=False,base_vel_base_frame=True,index=index)
 
             print("------------------------------------------------------------------------------------")
             
@@ -1906,9 +2057,9 @@ class SimInterface():
             
             # inside the function perfom the reordering of the joints to the pinocchio model
             xdotdot_aba_pin = pin_dynamic_model.ABA(cur_pos,cur_vel,previous_tau)
-            xdotdot_prev_base = self.GetSystemStateAccelerationTMinusOne(base_frame=True)
+            xdotdot_prev_base = self.ComputeSystemStateAccelerationTMinusOne(base_frame=True,index=index)
             xdotdot_prev_base_reordered = pin_dynamic_model.ReoderJoints2PinVec(xdotdot_prev_base,"vel")
-            xdotdot_prev_world = self.GetSystemStateAccelerationTMinusOne(base_frame=False)
+            xdotdot_prev_world = self.ComputeSystemStateAccelerationTMinusOne(base_frame=False,index=index)
             xdotdot_prev_world_reordered = pin_dynamic_model.ReoderJoints2PinVec(xdotdot_prev_world,"vel")
 
             print("acceleration pinocchio aba base frame                = ", xdotdot_aba_pin)
@@ -1926,23 +2077,23 @@ class SimInterface():
             print("error torques t-1 = ", error_torques)
             print("residual torques t-1 = ", torques_res)
 
-    def KinematicSanityCheck(self):
+    def KinematicSanityCheck(self,index=0):
         # here i compute the velocity of the system to see if the linear velocity needs to be read as the velocity of the entire robot applied in its center of mass (in world frame) $\dot{p}$
         # or if it is the velocity of the base frame expressed in the world frame for the spatial velocity case $v_w = \dot{p} - \omega \times (p)$
         
-        linear_velocity_world_frame = self.GetBaseLinVelocity()
+        linear_velocity_world_frame = self.bot[index].base_lin_vel.copy()
         print("------------------------------------------------------------------------------")
         print("body_lin_velocity_world_frame=",linear_velocity_world_frame)
-        if(self.step_counter >1):
-            v_s = self.GetPdot() - np.cross(self.GetBaseAngVelocity(),self.GetBasePosition())
-            print("Pdot=",self.GetPdot())
+        if(self.step_counter >1):                                     #self.GetBasePosition()
+            v_s = self.ComputePdot(index) - np.cross(self.bot[index].base_ang_vel,self.bot[index].base_position)
+            print("Pdot=",self.ComputePdot(index))
             # print velocity world frame (v_s) (park modern robotics page 99)
             print("body_lin_velocity_world_frame_v_s=",v_s)
             
          
-        linear_velocity_body_frame_with_quat = self.GetBaseLinVelocityBodyFrame() 
+        linear_velocity_body_frame_with_quat = self.bot[index].base_lin_vel_body_frame.copy() 
         
-        ang_velocity_world_frame = self.GetBaseAngVelocity()
+        ang_velocity_world_frame = self.bot[index].base_ang_vel.copy()
 
         
         # # trunk lin vel
