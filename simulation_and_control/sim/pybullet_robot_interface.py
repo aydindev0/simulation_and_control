@@ -30,7 +30,18 @@
 
 
 # reminder for delay in the simulation:
-# all the functions affected by the delay are:
+# all the functions affected by delay are:
+# - GetMotorAngles
+# - GetMotorVelocities
+# - GetMotorAccelerationTMinusOne
+# - GetBasePosition
+# - GetBaseOrientation
+# - GetBaseLinVelocity
+# - GetBaseAngVelocity
+# - GetBaseLinVelocityBodyFrame
+# - GetBaseAngVelocityBodyFrame
+# - GetBaseVelocitiesBodyFrame
+# - GetSystemState
 
 
 from __future__ import absolute_import
@@ -1171,7 +1182,8 @@ class SimInterface():
     """ 
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['motor_angles'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['motor_angles'].copy()
         else:
             return self.bot[index].motor_angles.copy()
     
@@ -1191,7 +1203,8 @@ class SimInterface():
         """
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['motor_velocities'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['motor_velocities'].copy()
         else:
             return self.bot[index].motor_velocities.copy()
 
@@ -1207,7 +1220,8 @@ class SimInterface():
     def GetMotorAccelerationTMinusOne(self,index):
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['motor_acceleration'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['motor_acceleration'].copy()
         else:
             return self.bot[index].motor_acceleration.copy()
     
@@ -1221,7 +1235,8 @@ class SimInterface():
     """ 
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_position'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_position'].copy()
         else:
             return  self.bot[index].base_position.copy()
     
@@ -1234,7 +1249,8 @@ class SimInterface():
         """
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_orientation'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_orientation'].copy()
         else:
             return self.bot[index].base_orientation.copy()
         
@@ -1249,7 +1265,8 @@ class SimInterface():
     """
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_lin_vel'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_lin_vel'].copy()
         else:
             return self.bot[index].base_lin_vel 
     
@@ -1277,7 +1294,8 @@ class SimInterface():
        # com_velocity_body_frame = self.TransformWorld2Body(velocity)
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_lin_vel_body_frame'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_lin_vel_body_frame'].copy()
         else:
             return self.bot[index].base_lin_vel_body_frame.copy()
     
@@ -1295,7 +1313,8 @@ class SimInterface():
     """
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_ang_vel'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_ang_vel'].copy()
         else:
             return self.bot[index].base_ang_vel.copy()
 
@@ -1314,7 +1333,8 @@ class SimInterface():
         #                                                 orientation)
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_ang_vel_body_frame'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_ang_vel_body_frame'].copy()
         else:
             return self.bot[index].base_ang_vel_body_frame.copy()
     
@@ -1340,7 +1360,8 @@ class SimInterface():
     def GetBaseVelocitiesBodyFrame(self,index=0):
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                return self.bot[index].state_buffer['base_lin_vel_body_frame'].copy(), self.bot[index].state_buffer['base_ang_vel_body_frame'].copy()
+                delayed_state = self.bot[index].state_buffer[-1]
+                return delayed_state['base_lin_vel_body_frame'].copy().delayed_state['base_ang_vel_body_frame'].copy()
         else:
             return self.bot[index].base_lin_vel_body_frame.copy(), self.bot[index].base_ang_vel_body_frame.copy()
     
