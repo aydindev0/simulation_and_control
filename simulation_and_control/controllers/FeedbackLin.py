@@ -29,8 +29,26 @@ def feedback_lin_ctrl(dyn_model, q_, qd_, q_d, qd_d, kp, kd):
     inherent dynamics. The control law implemented typically combines proportional-derivative (PD) control
     with dynamic compensation to achieve precise and stable motion.
     """
-    P = np.eye(dyn_model.getNumberofActuatedJoints()) * kp
-    D = np.eye(dyn_model.getNumberofActuatedJoints()) * kd
+    # here i want to add a control that if the kp gains are a numpy vector ill check if the size is good
+    #  and then i will create the P matrix and D matrix using the vector a diagonal of the matrices
+    # if the size is not good i will raise an error
+    # if the kp is a scalar i will create a diagonal matrix with the scalar value
+    # same for kd
+    if isinstance(kp, np.ndarray):
+        if kp.size != dyn_model.getNumberofActuatedJoints():
+            raise ValueError("The size of the kp vector is not correct") 
+    else:
+        kp = np.array([kp] * dyn_model.getNumberofActuatedJoints())
+    
+    P = np.diag(kp)
+    
+    if isinstance(kd, np.ndarray):
+        if kd.size != dyn_model.getNumberofActuatedJoints():
+            raise ValueError("The size of the kd vector is not correct")
+    else:
+        kd = np.array([kd] * dyn_model.getNumberofActuatedJoints())
+    D = np.diag(kd)
+ 
     # here i compute the feeback linearization tau // the reordering is already done inside compute all teamrs
     dyn_model.ComputeAllTerms(q_, qd_)
     # reoder measurements in pinocchio order
