@@ -10,10 +10,10 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/VModugno/simulation_and_control',  # Updated to HTTPS and correct URL
     packages=find_packages(),
-    install_requires=[
-        'pybullet',  # No version specified
-        'pinocchio'  # No version specified
-    ],
+    #install_requires=[
+    #    'pybullet',  # No version specified
+    #    'pinocchio'  # No version specified
+    #],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',

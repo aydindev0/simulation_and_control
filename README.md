@@ -16,7 +16,7 @@ To set up the necessary environment with all dependencies, use the provided `env
    cd simulation_and_control
    mamba env create -f environment.yaml
    conda activate robo_env
-   pip install . --no-deps
+   pip install . 
 ```
 
 
