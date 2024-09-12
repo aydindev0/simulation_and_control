@@ -133,8 +133,8 @@ class SimRobot():
         self.SetFootFriction(pybullet_client, self.conf['robot_pybullet']['foot_friction'][index])
         self.SetFootRestitution(pybullet_client, self.conf['robot_pybullet']['foot_restitution'][index])
         
-        self.link_floating_base_ori = self.bot[index].conf['robot_pybullet']["init_link_base_orientation"][index]
-        self.link_floating_base_pos = self.bot[index].conf['robot_pybullet']["init_link_base_position"][index]
+        self.link_floating_base_ori = self.conf['robot_pybullet']["init_link_base_orientation"][index]
+        self.link_floating_base_pos = self.conf['robot_pybullet']["init_link_base_position"][index]
         _, self.init_orientation_inv = pybullet_client.invertTransform(position=[0, 0, 0], orientation=self._GetDefaultInitOrientation())
 
         if len(self.conf['robot_pybullet']["motor_offset"][index]) == 0:
@@ -1537,8 +1537,8 @@ class SimInterface():
     def GetAllObservation(self):
         for j in  range(len(self.bot)):
             observation = []
-            observation.extend(self.bot[j].joint_angles)
-            observation.extend(self.bot[j].joint_velocities)
+            observation.extend(self.bot[j].motor_angles)
+            observation.extend(self.bot[j].motor_velocities)
             observation.extend(self.GetMotorTorques(j))
             observation.extend(self.bot[j].base_position)
             observation.extend(self.bot[j].base_orientation)
