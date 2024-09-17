@@ -581,7 +581,7 @@ class SimInterface():
             'base_lin_vel_body_frame': self.bot[j].base_lin_vel_body_frame,
             'base_ang_vel_body_frame': self.bot[j].base_ang_vel_body_frame
             }
-            self.bot[j].state_buffer.appendleft(current_state)  # Update the buffer
+            self.bot[j].state_buffer.append(current_state)  # Update the buffer
         
         # get all observation take all the observation for all the robots   
         self.observation_history.appendleft(self.GetAllObservation())
@@ -1181,9 +1181,11 @@ class SimInterface():
       Motor angles
     """ 
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['motor_angles'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].motor_angles.copy()
     
@@ -1202,9 +1204,11 @@ class SimInterface():
         Velocities of all motors.
         """
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['motor_velocities'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].motor_velocities.copy()
 
@@ -1219,8 +1223,8 @@ class SimInterface():
     # affected by delay measurement if true
     def GetMotorAccelerationTMinusOne(self,index):
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['motor_acceleration'].copy()
         else:
             return self.bot[index].motor_acceleration.copy()
@@ -1234,9 +1238,11 @@ class SimInterface():
       The position of the robot's base.
     """ 
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_position'].copy()
+            else:
+                print("buffer is empty")
         else:
             return  self.bot[index].base_position.copy()
     
@@ -1248,9 +1254,11 @@ class SimInterface():
         The orientation of minitaur's base.
         """
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+           if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_orientation'].copy()
+           else:
+                print("buffer is empty")
         else:
             return self.bot[index].base_orientation.copy()
         
@@ -1264,9 +1272,11 @@ class SimInterface():
       The velocity of the robot's base.
     """
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_lin_vel'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].base_lin_vel 
     
@@ -1293,9 +1303,11 @@ class SimInterface():
        # velocity = np.array(self.GetBaseVelocity())
        # com_velocity_body_frame = self.TransformWorld2Body(velocity)
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_lin_vel_body_frame'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].base_lin_vel_body_frame.copy()
     
@@ -1312,9 +1324,11 @@ class SimInterface():
       The velocity of robot's base.
     """
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_ang_vel'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].base_ang_vel.copy()
 
@@ -1332,9 +1346,11 @@ class SimInterface():
         #return self.TransformAngularVelocityToLocalFrame(ang_velocity,
         #                                                 orientation)
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_ang_vel_body_frame'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].base_ang_vel_body_frame.copy()
     
@@ -1359,9 +1375,12 @@ class SimInterface():
     # affected by delay measurement if true
     def GetBaseVelocitiesBodyFrame(self,index=0):
         if self.bot[index].delay_measure_flag:
-            if len(self.bot[index].state_buffer) == self.bot[index].state_buffer.maxlen:
-                delayed_state = self.bot[index].state_buffer[-1]
+            if len(self.bot[index].state_buffer) > 0:
+                # always get the oldest state in the buffer
+                delayed_state = self.bot[index].state_buffer[0]
                 return delayed_state['base_lin_vel_body_frame'].copy().delayed_state['base_ang_vel_body_frame'].copy()
+            else:
+                print("buffer is empty")
         else:
             return self.bot[index].base_lin_vel_body_frame.copy(), self.bot[index].base_ang_vel_body_frame.copy()
     
