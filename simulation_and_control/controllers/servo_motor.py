@@ -45,26 +45,39 @@ class ServoMotorModel(object):
   """
 
     def __init__(self,
-                 n_motors,
-                 kp=60,
-                 kd=1,
-                 motor_control_mod="position",
-                 torque_limits=None,
-                 friction_torque=False,
-                 friction_coefficient=0.0):
+             n_motors,
+             kp=60,
+             kd=1,
+             motor_control_mod="position",
+             torque_limits=None,
+             friction_torque=False,
+             friction_coefficient=0.0,  # Added missing comma
+             elastic_torque=False,
+             elastic_coefficient=0.0,  # Added missing comma
+             motor_load=False,
+             motor_load_coefficient=0.0):
+    
         self.n_motors = n_motors
         self._kp = kp
         self._kd = kd
         self._torque_limits = torque_limits
         self.friction_torque = friction_torque
         self.friction_coeff = friction_coefficient
+        self.elastic_torque = elastic_torque
+        self.elastic_coefficient = elastic_coefficient
+        self.motor_load = motor_load
+        self.motor_load_coefficient = motor_load_coefficient
+        
+        
+        # Handling torque limits initialization
         if torque_limits is not None:
             if isinstance(torque_limits, (collections.Sequence, np.ndarray)):
                 self._torque_limits = np.asarray(torque_limits)
             else:
                 self._torque_limits = np.full(self.n_motors, torque_limits)
+        
         self._motor_control_mode = motor_control_mod
-        self._strength_ratios = np.full(self.n_motors, 1)  # strenght ratio set to 1
+        self._strength_ratios = np.full(self.n_motors, 1)  # Strength ratio set to
 
     def set_strength_ratios(self, ratios):
         """Set the strength of each motors relative to the default value.
@@ -116,6 +129,7 @@ class ServoMotorModel(object):
                           motor_commands,
                           cur_q,
                           cur_qdot,
+                          prev_qdotdot,
                           motor_control_mode):
         """Convert the commands (position control or torque control) to torque.
 
@@ -141,15 +155,22 @@ class ServoMotorModel(object):
         if not motor_control_mode:
             motor_control_mode = self._motor_control_mode
 
+        additional_torques = np.full(self.n_motors, 0)
+        
         # todo adding other friction model as stribeck and dry friction
         if self.friction_torque:
             # build vector of torque sign and compute friction torque
             #torque_sign = np.sign(motor_commands.tau_cmd.squeeze())
             #additional_torques = self.friction_coeff * (np.abs(cur_qdot) * torque_sign)
             additional_torques = - self.friction_coeff * cur_qdot
-        else:
-            additional_torques = np.full(self.n_motors, 0)
-
+       
+        if self.elastic_torque:
+            additional_torques += self.elastic_coefficient * cur_q
+        
+        # this should go with the acceleration of the motor but we will use the previous acceleration as an estimation for the current one
+        if self.motor_load:
+            additional_torques += self.motor_load_coefficient * prev_qdotdot
+            
         # No processing for motor torques
         if motor_control_mode == "torque":
             assert len(motor_commands.tau_cmd.squeeze()) == self.n_motors
