@@ -165,11 +165,11 @@ class ServoMotorModel(object):
             additional_torques = - self.friction_coeff * cur_qdot
        
         if self.elastic_torque:
-            additional_torques += self.elastic_coefficient * cur_q
+            additional_torques += - self.elastic_coefficient * cur_q
         
         # this should go with the acceleration of the motor but we will use the previous acceleration as an estimation for the current one
         if self.motor_load:
-            additional_torques += self.motor_load_coefficient * prev_qdotdot
+            additional_torques += - self.motor_load_coefficient * prev_qdotdot
             
         # No processing for motor torques
         if motor_control_mode == "torque":
