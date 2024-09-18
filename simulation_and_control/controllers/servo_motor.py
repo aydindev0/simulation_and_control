@@ -155,7 +155,7 @@ class ServoMotorModel(object):
         if not motor_control_mode:
             motor_control_mode = self._motor_control_mode
 
-        additional_torques = np.full(self.n_motors, 0)
+        additional_torques = np.full(self.n_motors, 0.0)
         
         # todo adding other friction model as stribeck and dry friction
         if self.friction_torque:
