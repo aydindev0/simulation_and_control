@@ -160,7 +160,7 @@ class SimRobot():
             self.init_joint_vel = list(np.zeros((len(self.active_joint_ids),)))
 
         self.servo_motor_model = ServoMotorModel(len(self.active_joint_ids), self.conf['robot_pybullet']["servo_pos_gains"][index], self.conf['robot_pybullet']["servo_vel_gains"][index],
-                                                 friction_torque=self.conf['robot_pybullet']['motor_friction'][index], friction_coefficient=self.conf['robot_pybullet']['motor_friction_coeff'][index],
+                                                 friction_torque=self.conf['robot_pybullet']['motor_damping'][index], friction_coefficient=self.conf['robot_pybullet']['motor_damping_coeff'][index],
                                                  elastic_torque=self.conf['robot_pybullet']['motor_elastic_torque'][index],elastic_coefficient=self.conf['robot_pybullet']['motor_elastic_coeff'][index], 
                                                  motor_load=self.conf['robot_pybullet']['motor_inertia'][index], motor_load_coefficient=self.conf['robot_pybullet']['motor_inertia_coeff'][index])
         
