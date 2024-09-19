@@ -632,7 +632,8 @@ class SimInterface():
             current_control_mode = motor_control_mode[index] if len(self.bot) > 1 else motor_control_mode
 
             # Compute the torque using the appropriate command and control mode
-            motor_commands = self.bot[index].servo_motor_model.compute_torque(current_cmd, self.GetMotorAngles(index), self.GetMotorVelocities(index),self.ComputeMotorAccelerationTMinusOne(index), current_control_mode)
+            cur_M = self.ComputeMassMatrix(previous_state=False, index=index)
+            motor_commands = self.bot[index].servo_motor_model.compute_torque(current_cmd, self.GetMotorAngles(index), self.GetMotorVelocities(index),self.ComputeMotorAccelerationTMinusOne(index), cur_M, current_control_mode)
 
             # Transform into the motor space when applying the torque
             self.bot[index].applied_motor_commands = np.multiply(motor_commands, self.bot[index].motor_direction)
