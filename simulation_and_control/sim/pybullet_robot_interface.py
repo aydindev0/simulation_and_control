@@ -844,7 +844,7 @@ class SimInterface():
             # return M
     
     def ComputeMassMatrix(self,previous_state=False,index=0):
-        if(self.bot.base_type=="fixed"):
+        if(self.bot[index].base_type=="fixed"):
             if(previous_state):
                 x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
@@ -868,7 +868,7 @@ class SimInterface():
     
     def ComputeCoriolisAndGravityForces(self,previous_state=False,index=0):
         """Computes the Coriolis and gravity forces."""
-        if(self.bot.base_type=="fixed"):
+        if(self.bot[index].base_type=="fixed"):
             if(previous_state):
                 x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
@@ -885,7 +885,7 @@ class SimInterface():
     # with this flag base_velocity_in_base_frame we can compute the gravity action on the base but in the base frame
     def ComputeGravity(self,base_velocity_in_base_frame=False,previous_state=False,index=0):
         grav = []
-        if(self.bot.base_type=="fixed"):
+        if(self.bot[index].base_type=="fixed"):
             if(previous_state):
                 x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
@@ -921,7 +921,7 @@ class SimInterface():
         
     def ComputeCoriolis(self,base_velocity_in_base_frame=False,previous_state=False,index=0):
         """Computes the Coriolis forces."""
-        if(self.bot.base_type=="fixed"):
+        if(self.bot[index].base_type=="fixed"):
             if(previous_state):
                 x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
@@ -960,23 +960,23 @@ class SimInterface():
             
             return coriolis
     
-    def DirectDynamicsActuatedNoContact(self,tau,previous_state=False):
-        if(self.bot.base_type=="fixed"):
-            c = self.ComputeCoriolis(previous_state=previous_state)
-            g = self.ComputeGravity(previous_state=previous_state)
-            M = self.ComputeMassMatrix(previous_state=previous_state)
+    def DirectDynamicsActuatedNoContact(self,tau,previous_state=False, index=0):
+        if(self.bot[index].base_type=="fixed"):
+            c = self.ComputeCoriolis(previous_state=previous_state,index=index)
+            g = self.ComputeGravity(previous_state=previous_state,index=index)
+            M = self.ComputeMassMatrix(previous_state=previous_state,index=index)
             # coriolis + centrifugal + gravity
             n = c + g
             acc =  np.linalg.inv(M) @ (tau-n)
-        elif(self.bot.base_type=="floating"):
+        elif(self.bot[index].base_type=="floating"):
             n_bdot = 6
-            c = self.ComputeCoriolis(previous_state=previous_state)
+            c = self.ComputeCoriolis(previous_state=previous_state,index=index)
             c_b =  c[:n_bdot,]
             c_q =  c[n_bdot:,]
-            g = self.ComputeGravity(previous_state=previous_state)
+            g = self.ComputeGravity(previous_state=previous_state,index=index)
             g_b =  g[:n_bdot,]
             g_q =  g[n_bdot:,]
-            M = self.ComputeMassMatrix(previous_state=previous_state)
+            M = self.ComputeMassMatrix(previous_state=previous_state,index=index)
             M_bb = M[:n_bdot, :n_bdot]
             M_bq = M[:n_bdot,  n_bdot:]
             M_qq = M[n_bdot:,  n_bdot:] 
