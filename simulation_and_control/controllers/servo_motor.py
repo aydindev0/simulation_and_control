@@ -175,7 +175,7 @@ class ServoMotorModel(object):
         # No processing for motor torques
         if motor_control_mode == "torque":
             assert len(motor_commands.tau_cmd.squeeze()) == self.n_motors
-            motor_torques = self._strength_ratios * motor_commands.tau_cmd + M*additional_torques
+            motor_torques = self._strength_ratios * motor_commands.tau_cmd + M @ additional_torques
             return motor_torques
 
         desired_motor_angles = np.full(self.n_motors, 0)
