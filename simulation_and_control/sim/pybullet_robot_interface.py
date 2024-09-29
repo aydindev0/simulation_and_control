@@ -171,7 +171,12 @@ class SimRobot():
         self.robot_noise = self.conf['robot_pybullet']['robot_noise'][index]
         # adusting values for each entry of self.robot_noise it id a dictionary
         for key in self.robot_noise.keys():
-            self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], self.active_joint_ids, key)
+            if key in ("joint_cov", "joint_vel_cov", "joint_acc_cov", "joint_torque_cov"):
+                self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], self.num_motors, key)
+            if key in ("base_pos_cov", "base_lin_vel_cov", "base_ang_vel_cov"):
+                self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], 3, key)
+            if key in ("base_ori_cov"):
+                self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], 4, key)
 
         #self.noise_cov = adjust_value(self.noise_flag, self.conf['robot_pybullet']['noise_covariance'][index], self.active_joint_ids, 'noise_covariance')
 
