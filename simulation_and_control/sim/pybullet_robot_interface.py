@@ -64,6 +64,7 @@ import pybullet  # pytype:disable=import-error
 import pybullet_data
 from pybullet_utils import bullet_client
 from ..controllers.servo_motor import MotorCommands, ServoMotorModel ## CHANGE changed for the package structure
+from ..utils import adjust_value 
 # this is only for checking if the module is installed (TODO change this)
 missing_robot_description = False
 try:
@@ -165,7 +166,18 @@ class SimRobot():
                                                  motor_load=self.conf['robot_pybullet']['motor_inertia'][index], motor_load_coefficient=self.conf['robot_pybullet']['motor_inertia_coeff'][index])
         
 
+        # adding measures noise to the simulation
+        self.noise_flag = self.conf['robot_pybullet']['noise_flag'][index]
+        self.robot_noise = self.conf['robot_pybullet']['robot_noise'][index]
+        # adusting values for each entry of self.robot_noise it id a dictionary
+        for key in self.robot_noise.keys():
+            self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], self.active_joint_ids, key)
 
+        #self.noise_cov = adjust_value(self.noise_flag, self.conf['robot_pybullet']['noise_covariance'][index], self.active_joint_ids, 'noise_covariance')
+
+
+        
+            
         # adding delay measures in the simulation
         # i want to be sure that i have a delay only if the flag is up
         self.delay_measure_flag = self.conf['robot_pybullet']['delay_measure_flag'][index]
@@ -585,8 +597,8 @@ class SimInterface():
             }
             self.bot[j].state_buffer.append(current_state)  # Update the buffer
         
-        # get all observation take all the observation for all the robots   
-        self.observation_history.appendleft(self.GetAllObservation())
+        # get all ideal observation (no noise no delay) take all the observation for all the robots   
+        self.observation_history.appendleft(self.GetAllObservationIdeal())
             
     # sending command to the simulator
     # function to advance the simulation every time step
@@ -1186,11 +1198,18 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['motor_angles'].copy()
+                motor_angles = delayed_state['motor_angles'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].motor_angles.copy()
+            motor_angles = self.bot[index].motor_angles.copy()
+
+        # Add noise if the noise flag is set
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["joint_cov"], size=motor_angles.shape)
+            motor_angles += noise
+
+        return motor_angles
     
     def ExtractMotorVelocities(self,index):
         motor_velocities = []
@@ -1209,11 +1228,18 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['motor_velocities'].copy()
+                motor_velocities = delayed_state['motor_velocities'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].motor_velocities.copy()
+            motor_velocities = self.bot[index].motor_velocities.copy()
+        
+        # Add noise if the noise flag is set
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["joint_vel_cov"], size=motor_velocities.shape)
+            motor_velocities += noise
+
+        return motor_velocities
 
     def ComputeMotorAccelerationTMinusOne(self,index):
         """Get the acceleration of all the motors. at the previous time step"""
@@ -1228,9 +1254,16 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['motor_acceleration'].copy()
+                motor_accel = delayed_state['motor_acceleration'].copy()
         else:
-            return self.bot[index].motor_acceleration.copy()
+            motor_accel = self.bot[index].motor_acceleration.copy()
+
+        # Add noise if the noise flag is set
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["joint_acc_cov"], size=motor_accel.shape)
+            motor_accel += noise
+        
+        return motor_accel
     
     
     # affected by delay measurement if true
@@ -1243,11 +1276,18 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_position'].copy()
+                base_pos = delayed_state['base_position'].copy()
             else:
                 print("buffer is empty")
         else:
-            return  self.bot[index].base_position.copy()
+            base_pos = self.bot[index].base_position.copy()
+
+        # Add noise if the noise flag is set
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_pos_cov"], size=base_pos.shape)
+            base_pos += noise
+
+        return base_pos
     
     # affected by delay measurement if true
     def GetBaseOrientation(self,index=0):
@@ -1259,11 +1299,18 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
            if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_orientation'].copy()
+                base_ori = delayed_state['base_orientation'].copy()
            else:
                 print("buffer is empty")
         else:
-            return self.bot[index].base_orientation.copy()
+            base_ori = self.bot[index].base_orientation.copy()
+
+        # Add noise if the noise flag is set
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"], size=base_ori.shape)
+            base_ori += noise
+
+        return base_ori
         
 
     # the base linear velocity is filtered (world frame)
@@ -1277,11 +1324,18 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_lin_vel'].copy()
+                base_lin_vel = delayed_state['base_lin_vel'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].base_lin_vel 
+            base_lin_vel = self.bot[index].base_lin_vel 
+
+        # Add noise if the noise flag is set
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_lin_vel_cov"], size=base_lin_vel.shape)
+            base_lin_vel += noise
+        
+        return base_lin_vel
     
     def ComputePdot(self,index=0):
         """Get the linear velocity of quadruped base."""
@@ -1308,11 +1362,17 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_lin_vel_body_frame'].copy()
+                base_lin_vel_body = delayed_state['base_lin_vel_body_frame'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].base_lin_vel_body_frame.copy()
+            base_lin_vel_body = self.bot[index].base_lin_vel_body_frame.copy()
+
+        if self.noise_flag:
+            noise = np.random.normal(0, self.self.bot[index].robot_noise["base_lin_vel_cov"], size=base_lin_vel_body.shape)
+            base_lin_vel_body += noise
+        
+        return base_lin_vel_body
     
     def ComputeBaseLinAccelerationBodyFrameTMinusOne(self,index=0):
         """Get the linear acceleration of quadruped base."""
@@ -1329,11 +1389,17 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_ang_vel'].copy()
+                base_ang_vel = delayed_state['base_ang_vel'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].base_ang_vel.copy()
+            base_ang_vel = self.bot[index].base_ang_vel.copy()
+
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_ang_vel_cov"], size=base_ang_vel.shape)
+            base_ang_vel += noise
+
+        return base_ang_vel
 
     def ComputeBaseAngAccelerationTMinusOne(self,index=0):
         """Get the ang acceleration of quadruped base."""
@@ -1351,11 +1417,17 @@ class SimInterface():
         if self.bot[index].delay_measure_flag:
             if len(self.bot[index].state_buffer) > 0:
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_ang_vel_body_frame'].copy()
+                base_ang_vel_body = delayed_state['base_ang_vel_body_frame'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].base_ang_vel_body_frame.copy()
+            base_ang_vel_body = self.bot[index].base_ang_vel_body_frame.copy()
+        
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_ang_vel_cov"], size=base_ang_vel_body.shape)
+            base_ang_vel_body += noise
+
+        return base_ang_vel_body
     
     def ComputeBaseAngAccelerationBodyFrameTMinusOne(self,index=0):
         """Get the ang acceleration of quadruped base."""
@@ -1381,11 +1453,22 @@ class SimInterface():
             if len(self.bot[index].state_buffer) > 0:
                 # always get the oldest state in the buffer
                 delayed_state = self.bot[index].state_buffer[0]
-                return delayed_state['base_lin_vel_body_frame'].copy().delayed_state['base_ang_vel_body_frame'].copy()
+                base_lin_vel_body = delayed_state['base_lin_vel_body_frame'].copy() , 
+                base_ang_vel_body = delayed_state['base_ang_vel_body_frame'].copy()
             else:
                 print("buffer is empty")
         else:
-            return self.bot[index].base_lin_vel_body_frame.copy(), self.bot[index].base_ang_vel_body_frame.copy()
+            base_lin_vel_body = self.bot[index].base_lin_vel_body_frame.copy()
+            base_ang_vel_body = self.bot[index].base_ang_vel_body_frame.copy()
+
+        if self.noise_flag:
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_lin_vel_cov"], size=base_lin_vel_body.shape)
+            base_lin_vel_body += noise
+
+            noise = np.random.normal(0, self.bot[index].robot_noise["base_ang_vel_cov"], size=base_ang_vel_body.shape)
+            base_ang_vel_body += noise
+
+        return base_lin_vel_body, base_ang_vel_body
     
     # def GetSystemStateAccelerationTMinusOne(self,base_frame=True):
     #     if(self.bot.base_type=="fixed"):
@@ -1442,7 +1525,13 @@ class SimInterface():
         Returns:
         Motor torques of all eight motors.
         """
-            return self.bot[index].applied_motor_commands.copy()
+            cur_torque = self.bot[index].applied_motor_commands.copy()
+            # Add noise if the noise flag is set
+            if self.noise_flag:
+                noise = np.random.normal(0, self.bot[index].robot_noise["joint_torque_cov"], size=cur_torque.shape)
+                cur_torque += noise
+            return cur_torque
+
 
     # def GetBaseRollPitchYawRate(self):
     #     """Get the rate of orientation change of the minitaur's base in euler angle.
@@ -1556,7 +1645,10 @@ class SimInterface():
                 prev_xdot = np.concatenate((np.asarray(vel_b), np.asarray(ang_vel_b)))
         return prev_x, prev_xdot
     
-    def GetAllObservation(self):
+    # this function return the full system state floating base + joints and their velocities
+    # without delay and noise 
+    def GetAllObservationIdeal(self):
+        bot_observation = []
         for j in  range(len(self.bot)):
             observation = []
             observation.extend(self.bot[j].motor_angles)
@@ -1568,7 +1660,25 @@ class SimInterface():
             observation.extend(self.bot[j].base_ang_vel)
             observation.extend(self.bot[j].base_lin_vel_body_frame)
             observation.extend(self.bot[j].base_ang_vel_body_frame)
-            return observation    
+            bot_observation.append(observation)
+        return bot_observation  
+
+    # return 
+    def GetAllObservation(self):
+        bot_observation = []
+        for j in  range(len(self.bot)):
+            observation = []
+            observation.extend(self.GetMotorAngles(j))
+            observation.extend(self.GetMotorVelocities(j))
+            observation.extend(self.GetMotorTorques(j))
+            observation.extend(self.GetBasePosition(j))
+            observation.extend(self.GetBaseOrientation(j))
+            observation.extend(self.GetBaseLinVelocity(j))
+            observation.extend(self.GetBaseAngVelocity(j))
+            observation.extend(self.GetBaseLinVelocityBodyFrame(j))
+            observation.extend(self.GetBaseAngVelocityBodyFrame(j))
+            bot_observation.append(observation)
+        return bot_observation  
 
 
     def GetActionDimension(self, index=0):

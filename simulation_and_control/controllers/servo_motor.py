@@ -20,6 +20,7 @@ import inspect
 
 import collections
 import numpy as np
+from ..utils import adjust_value 
 
 
 class MotorCommands(object):
@@ -62,11 +63,14 @@ class ServoMotorModel(object):
         self._kd = kd
         self._torque_limits = torque_limits
         self.friction_torque = friction_torque
-        self.friction_coeff = friction_coefficient
+        self.friction_coeff = adjust_value(friction_torque, friction_coefficient, n_motors, "friction_coefficient")
+        #self.friction_coeff = friction_coefficient
         self.elastic_torque = elastic_torque
-        self.elastic_coefficient = elastic_coefficient
+        #self.elastic_coefficient = elastic_coefficient
+        self.elastic_coefficient = adjust_value(elastic_torque, elastic_coefficient, n_motors, "elastic_coefficient")
         self.motor_load = motor_load
-        self.motor_load_coefficient = motor_load_coefficient
+        #self.motor_load_coefficient = motor_load_coefficient
+        self.motor_load_coefficient = adjust_value(motor_load, motor_load_coefficient, n_motors, "motor_load_coefficient")
         
         
         # Handling torque limits initialization
@@ -163,9 +167,11 @@ class ServoMotorModel(object):
             # build vector of torque sign and compute friction torque
             #torque_sign = np.sign(motor_commands.tau_cmd.squeeze())
             #additional_torques = self.friction_coeff * (np.abs(cur_qdot) * torque_sign)
+            # element wise multiplication
             additional_torques = - self.friction_coeff * cur_qdot
        
         if self.elastic_torque:
+            # element wise multiplication
             additional_torques += - self.elastic_coefficient * cur_q
         
         # this should go with the acceleration of the motor but we will use the previous acceleration as an estimation for the current one
