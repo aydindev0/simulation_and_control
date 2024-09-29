@@ -775,7 +775,7 @@ class PinWrapper():
         return self.conf[first_param][param]
     
     
-    def ComputeDyanmicRegressor(self,q,qd,qdd):
+    def ComputeDynamicRegressor(self,q,qd,qdd):
         # reorder from external to pinocchio
         q_ = self.ReoderJoints2PinVec(q,"pos")
         qd_ = self.ReoderJoints2PinVec(qd,"vel")
