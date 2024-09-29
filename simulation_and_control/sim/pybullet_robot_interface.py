@@ -1210,7 +1210,7 @@ class SimInterface():
             motor_angles = self.bot[index].motor_angles.copy()
 
         # Add noise if the noise flag is set
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["joint_cov"], size=motor_angles.shape)
             motor_angles += noise
 
@@ -1240,7 +1240,7 @@ class SimInterface():
             motor_velocities = self.bot[index].motor_velocities.copy()
         
         # Add noise if the noise flag is set
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["joint_vel_cov"], size=motor_velocities.shape)
             motor_velocities += noise
 
@@ -1264,7 +1264,7 @@ class SimInterface():
             motor_accel = self.bot[index].motor_acceleration.copy()
 
         # Add noise if the noise flag is set
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["joint_acc_cov"], size=motor_accel.shape)
             motor_accel += noise
         
@@ -1288,7 +1288,7 @@ class SimInterface():
             base_pos = self.bot[index].base_position.copy()
 
         # Add noise if the noise flag is set
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["base_pos_cov"], size=base_pos.shape)
             base_pos += noise
 
@@ -1311,7 +1311,7 @@ class SimInterface():
             base_ori = self.bot[index].base_orientation.copy()
 
         # Add noise if the noise flag is set
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"], size=base_ori.shape)
             base_ori += noise
 
@@ -1336,7 +1336,7 @@ class SimInterface():
             base_lin_vel = self.bot[index].base_lin_vel 
 
         # Add noise if the noise flag is set
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["base_lin_vel_cov"], size=base_lin_vel.shape)
             base_lin_vel += noise
         
@@ -1373,7 +1373,7 @@ class SimInterface():
         else:
             base_lin_vel_body = self.bot[index].base_lin_vel_body_frame.copy()
 
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.self.bot[index].robot_noise["base_lin_vel_cov"], size=base_lin_vel_body.shape)
             base_lin_vel_body += noise
         
@@ -1400,7 +1400,7 @@ class SimInterface():
         else:
             base_ang_vel = self.bot[index].base_ang_vel.copy()
 
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["base_ang_vel_cov"], size=base_ang_vel.shape)
             base_ang_vel += noise
 
@@ -1428,7 +1428,7 @@ class SimInterface():
         else:
             base_ang_vel_body = self.bot[index].base_ang_vel_body_frame.copy()
         
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["base_ang_vel_cov"], size=base_ang_vel_body.shape)
             base_ang_vel_body += noise
 
@@ -1466,7 +1466,7 @@ class SimInterface():
             base_lin_vel_body = self.bot[index].base_lin_vel_body_frame.copy()
             base_ang_vel_body = self.bot[index].base_ang_vel_body_frame.copy()
 
-        if self.noise_flag:
+        if self.bot[index].noise_flag:
             noise = np.random.normal(0, self.bot[index].robot_noise["base_lin_vel_cov"], size=base_lin_vel_body.shape)
             base_lin_vel_body += noise
 
@@ -1532,7 +1532,7 @@ class SimInterface():
         """
             cur_torque = self.bot[index].applied_motor_commands.copy()
             # Add noise if the noise flag is set
-            if self.noise_flag:
+            if self.bot[index].noise_flag:
                 noise = np.random.normal(0, self.bot[index].robot_noise["joint_torque_cov"], size=cur_torque.shape)
                 cur_torque += noise
             return cur_torque
