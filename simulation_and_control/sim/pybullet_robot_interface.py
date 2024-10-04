@@ -2286,6 +2286,7 @@ class SimInterface():
         """calculate what angles the robot joints should have to reach the targets. Targets in world coordinates. Takes angles in radians.
 
         Args:
+            bot_index: int, what internal robot index to use to do calcs
             target_position (npt.NDArray[float]): x, y, z
             euler_angles_radians (Optional[npt.NDArray[float]], optional): rx, ry, rz, or None. Easier to solve if None. Defaults to None.
             target_frame (Optional[str], optional): what frame to use for the calcs. Defaults to None.
