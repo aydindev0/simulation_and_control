@@ -51,6 +51,7 @@ from __future__ import print_function
 import os
 import inspect
 import time
+from typing import Optional, Any, Tuple
 
 import collections
 import copy
@@ -353,6 +354,12 @@ class SimRobot():
                 self.base_link_2_com_ori_offset = np.asarray(link_info[3])
             self.link_name_to_id[joint_info[12].decode("UTF-8")] = joint_info[0]
 
+    def get_link_id_from_name(self, link_name: str):
+        return self.link_name_to_id[link_name]
+    
+    def get_pybullet_bot_index(self):
+        return self.bot_pybullet
+
     def SetFootFriction(self, pybullet_client, foot_friction):
         """Set the lateral friction of the feet.
 
@@ -445,13 +452,14 @@ class SimInterface():
     def __init__(self,
                  conf_file_name: str, # here i assume that the conf file is in the  config_file folder
                  conf_file_path_ext: str = None, # if it is not none th config file is not in the local config_file folder
-                 ):
+                 use_gui: bool = True):
         """Constructs the robot and the environment in pybullet. 
 
     Args:
       
       conf_file_path: 
       time_step: The time step of the simulation.
+      use_gui: whether to bring up the pybullet gui, or to use direct mode without a gui
     """
         
         # reading json file and instatiate some variables
@@ -465,7 +473,13 @@ class SimInterface():
         # here i save all the parameters that are necessary for the environment
         self.time_step = conf_file_json["sim"]["time_step"]
         # here i need to create the environment and get the robot object
-        self.pybullet_client = bullet_client.BulletClient(connection_mode=pybullet.GUI)
+        self.use_gui = use_gui
+        connection_mode = None
+        if self.use_gui:
+            connection_mode = pybullet.GUI
+        else:
+            connection_mode = pybullet.DIRECT
+        self.pybullet_client = bullet_client.BulletClient(connection_mode=connection_mode)
         self.pybullet_client.setPhysicsEngineParameter(numSolverIterations=30)
         self.pybullet_client.setTimeStep(self.time_step)
         self.pybullet_client.setGravity(0, 0, -9.81)
@@ -2267,3 +2281,60 @@ class SimInterface():
         # print velocity world frame
 
 
+    def calc_inverse_kinematics(self, bot_index: int, target_position, euler_angles_radians: Optional = None,
+                     target_frame: Optional[str] = None) -> Any:
+        """calculate what angles the robot joints should have to reach the targets. Targets in world coordinates. Takes angles in radians.
+
+        Args:
+            bot_index: int, what internal robot index to use to do calcs
+            target_position (npt.NDArray[float]): x, y, z
+            euler_angles_radians (Optional[npt.NDArray[float]], optional): rx, ry, rz, or None. Easier to solve if None. Defaults to None.
+            target_frame (Optional[str], optional): what frame to use for the calcs. Defaults to None.
+
+        Returns:
+            npt.NDArray[float]: the joint angles
+        """
+
+        ori_des_quat = None
+        if euler_angles_radians is not None:
+            ori_des_quat = pybullet.getQuaternionFromEuler(euler_angles_radians)
+        if target_frame is None:
+            target_frame = "panda_link8"
+
+        link_id = self.bot[bot_index].get_link_id_from_name(target_frame)
+        lower_limits, upper_limits = self.GetBotJointsLimit(bot_index)
+        pybullet_robot_index = self.bot[bot_index].get_pybullet_bot_index()
+
+        joint_poses_pybullet = self.pybullet_client.calculateInverseKinematics(pybullet_robot_index,
+                                                                               link_id,
+                                                                               target_position,
+                                                                               ori_des_quat,
+                                                                               lowerLimits=lower_limits,
+                                                                               upperLimits=upper_limits)
+        joint_poses_pybullet = np.array(joint_poses_pybullet)
+        return joint_poses_pybullet
+
+    def get_pose(self, bot_index: int, target_frame: str = "panda_link8") -> Tuple[Any, Any]:
+        """Helper function to get the current pose of the robot from the current angles.
+
+        Args:
+            bot_index (int): What is the index of the robot to calculate?
+            target_frame (str, optional): What frame should the pose be in, from frames in the URDF. Defaults to "gripper".. Defaults to "gripper".
+
+        Returns:
+            Tuple[npt.NDArray[float], npt.NDArray[float]]: position, orientation where orientation is euler angles in radians
+        """
+
+        link_id = self.bot[bot_index].get_link_id_from_name(target_frame)
+        pybullet_robot_index = self.bot[bot_index].get_pybullet_bot_index()
+
+        link_state = self.pybullet_client.getLinkState(
+            pybullet_robot_index, link_id, computeForwardKinematics=True)
+
+        linkWorldPosition = link_state[0]
+        linkWorldOrientation = link_state[1]
+
+        link_world_orientation = pybullet.getEulerFromQuaternion(
+            linkWorldOrientation)
+        link_world_orientation = np.array(link_world_orientation)
+        return linkWorldPosition, link_world_orientation

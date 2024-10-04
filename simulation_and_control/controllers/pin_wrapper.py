@@ -2,7 +2,6 @@ import pinocchio as pin
 import json
 import os
 import numpy as np
-from pinocchio.visualize import GepettoVisualizer
 from collections import OrderedDict
 missing_robot_description = False
 try:
@@ -201,7 +200,8 @@ class PinWrapper():
             self.n = self.n_q + self.n_b
             self.n_dot = self.n_qdot + self.n_bdot
         
-        if self.visualizer: 
+        if self.visualizer:
+            from pinocchio.visualize import GepettoVisualizer
             package_dir= os.path.dirname(urdf_file)  
             print("package_dir=",package_dir)     
             self.collision_model = pin.buildGeomFromUrdf(self.pin_model,urdf_file,pin.GeometryType.COLLISION,package_dir)
