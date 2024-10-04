@@ -2298,7 +2298,7 @@ class SimInterface():
         if euler_angles_radians is not None:
             ori_des_quat = pybullet.getQuaternionFromEuler(euler_angles_radians)
         if target_frame is None:
-            target_frame = "panda_joint8"
+            target_frame = "panda_link8"
 
         link_id = self.bot[bot_index].get_link_id_from_name(target_frame)
         lower_limits, upper_limits = self.GetBotJointsLimit(bot_index)
