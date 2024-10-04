@@ -2328,7 +2328,7 @@ class SimInterface():
         pybullet_robot_index = self.bot[bot_index].get_pybullet_bot_index()
 
         link_state = self.pybullet_client.getLinkState(
-            self.bot_pybullet, link_id, computeForwardKinematics=True)
+            pybullet_robot_index, link_id, computeForwardKinematics=True)
 
         linkWorldPosition = link_state[0]
         linkWorldOrientation = link_state[1]
