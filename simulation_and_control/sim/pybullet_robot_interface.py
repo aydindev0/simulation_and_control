@@ -51,6 +51,7 @@ from __future__ import print_function
 import os
 import inspect
 import time
+from typing import Optional
 
 import collections
 import copy
@@ -2280,7 +2281,7 @@ class SimInterface():
         # print velocity world frame
 
 
-    def calc_inverse_kinematics(self, bot_index: int, target_position: npt.NDArray[float], euler_angles_radians: Optional[npt.NDArray[float]] = None,
+    def calc_inverse_kinematics(self, bot_index: int, target_position, euler_angles_radians: Optional = None,
                      target_frame: Optional[str] = None) -> npt.NDArray[float]:
         """calculate what angles the robot joints should have to reach the targets. Targets in world coordinates. Takes angles in radians.
 
