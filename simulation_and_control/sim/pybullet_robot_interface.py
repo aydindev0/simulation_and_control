@@ -2312,3 +2312,28 @@ class SimInterface():
                                                                                upperLimits=upper_limits)
         joint_poses_pybullet = np.array(joint_poses_pybullet)
         return joint_poses_pybullet
+
+    def get_pose(self, bot_index: int, target_frame: str = "panda_link8") -> Tuple[Any, Any]:
+        """Helper function to get the current pose of the robot from the current angles.
+
+        Args:
+            bot_index (int): What is the index of the robot to calculate?
+            target_frame (str, optional): What frame should the pose be in, from frames in the URDF. Defaults to "gripper".. Defaults to "gripper".
+
+        Returns:
+            Tuple[npt.NDArray[float], npt.NDArray[float]]: position, orientation where orientation is euler angles in radians
+        """
+
+        link_id = self.bot[bot_index].get_link_id_from_name(target_frame)
+        pybullet_robot_index = self.bot[bot_index].get_pybullet_bot_index()
+
+        link_state = self.pybullet_client.getLinkState(
+            self.bot_pybullet, link_id, computeForwardKinematics=True)
+
+        linkWorldPosition = link_state[0]
+        linkWorldOrientation = link_state[1]
+
+        link_world_orientation = pybullet.getEulerFromQuaternion(
+            linkWorldOrientation)
+        link_world_orientation = np.array(link_world_orientation)
+        return linkWorldPosition, link_world_orientation
