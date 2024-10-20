@@ -114,7 +114,6 @@ class SimRobot():
        
         self.conf = conf_file_json
         
-       
         self.base_type = self.conf['robot_pybullet']['base_type'][index]
         self.base_name = self.conf['robot_pybullet']["floating_base_name"][index]
         # this variable is instatiated in self._buildLinkNameToId()
@@ -734,6 +733,7 @@ class SimInterface():
                                                     self.bot[j].init_joint_angles[i],
                                                     targetVelocity=self.bot[j].init_joint_vel[i])
                 i = i + 1
+                #print(i)
        
             # reset position and orientation to the one specified in the configuration file
             # TODO check if it works for the fixed base as well 

@@ -129,3 +129,9 @@ def main():
 if __name__ == '__main__':
     main()
 ```
+
+## TODO LIST
+
+- [ ] adding in pin_wrapper an internal structure to manage continuos joints. remember that in pinocchio a continuos joint has 2 degrees of freedom
+
+

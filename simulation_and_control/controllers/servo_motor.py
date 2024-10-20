@@ -23,11 +23,27 @@ import numpy as np
 from ..utils import adjust_value 
 
 
+#class MotorCommands(object):
+#    def __init__(self, ctrl_value=np.array([]), control_list=np.array([])):
+#      self.ctrl_cmd = ctrl_value
+#      self.control_list = control_list
+
 class MotorCommands(object):
-    def __init__(self, des_pos=np.array([]), des_vel=np.array([]), torque=np.array([])):
-      self.pos_cmd = des_pos
-      self.vel_cmd = des_vel
-      self.tau_cmd = torque
+    def __init__(self, ctrl_value=np.array([]), control_list=np.array([])):
+        self.control_list = control_list
+        
+        # Determine the desired length for ctrl_cmd
+        desired_length = len(self.control_list)
+        
+        # Check if ctrl_value has only one element
+        if np.isscalar(ctrl_value) or (isinstance(ctrl_value, np.ndarray) and ctrl_value.size == 1):
+            # Extend ctrl_value to match the desired length
+            self.ctrl_cmd = np.full(desired_length, ctrl_value)
+        else:
+            # Ensure ctrl_value has the correct length
+            if len(ctrl_value) != desired_length:
+                raise ValueError(f"ctrl_value must have length {desired_length}, got {len(ctrl_value)}")
+            self.ctrl_cmd = ctrl_value      
 
 
 # create an abstract class for motor_model
@@ -174,40 +190,95 @@ class ServoMotorModel(object):
             # element wise multiplication
             additional_torques += - self.elastic_coefficient * cur_q
         
+        # computing additional torques by using the M matrix
+        additional_torques = M @ additional_torques
+
+
         # this should go with the acceleration of the motor but we will use the previous acceleration as an estimation for the current one
         #if self.motor_load:
         #    additional_torques += - self.motor_load_coefficient * prev_qdotdot
-            
-        # No processing for motor torques
-        if motor_control_mode == "torque":
-            assert len(motor_commands.tau_cmd.squeeze()) == self.n_motors
-            motor_torques = self._strength_ratios * motor_commands.tau_cmd + M @ additional_torques
-            return motor_torques
 
-        desired_motor_angles = np.full(self.n_motors, 0)
-        desired_motor_velocities = np.full(self.n_motors, 0)
-        kp = None
-        kd = None
+        # OLD CODE    
+        # # No processing for motor torques
+        # if motor_control_mode == "torque":
+        #     assert len(motor_commands.tau_cmd.squeeze()) == self.n_motors
+        #     motor_torques = self._strength_ratios * motor_commands.tau_cmd + M @ additional_torques
+        #     return motor_torques
+
+        # desired_motor_angles = np.full(self.n_motors, 0)
+        # desired_motor_velocities = np.full(self.n_motors, 0)
+        # kp = None
+        # kd = None
         
-        if motor_control_mode == "position":
-            assert len(motor_commands.pos_cmd.squeeze()) == self.n_motors
-            kp = self._kp
-            kd = self._kd
-            if(len(motor_commands.pos_cmd)):
-              desired_motor_angles = motor_commands.pos_cmd.squeeze()
-            if (len(motor_commands.vel_cmd.squeeze())):
-              desired_motor_velocities = motor_commands.vel_cmd
-        else:
-            print("Undefined motor_control_mode=", motor_control_mode)
-            exit()
-        motor_torques = -1 * (kp * (cur_q - desired_motor_angles)) - kd * (
-                cur_qdot - desired_motor_velocities)
-        motor_torques = (self._strength_ratios * motor_torques).squeeze() + additional_torques
+        # if motor_control_mode == "position":
+        #     assert len(motor_commands.pos_cmd.squeeze()) == self.n_motors
+        #     kp = self._kp
+        #     kd = self._kd
+        #     if(len(motor_commands.pos_cmd)):
+        #       desired_motor_angles = motor_commands.pos_cmd.squeeze()
+        #     if (len(motor_commands.vel_cmd.squeeze())):
+        #       desired_motor_velocities = motor_commands.vel_cmd
+        # else:
+        #     print("Undefined motor_control_mode=", motor_control_mode)
+        #     exit()
+        # motor_torques = -1 * (kp * (cur_q - desired_motor_angles)) - kd * (
+        #         cur_qdot - desired_motor_velocities)
+        # motor_torques = (self._strength_ratios * motor_torques).squeeze() + additional_torques
+        # if self._torque_limits is not None:
+        #     if len(self._torque_limits) != len(motor_torques):
+        #         raise ValueError(
+        #             "Torque limits dimension does not match the number of motors.")
+        #     motor_torques = np.clip(motor_torques, -1.0 * self._torque_limits,
+        #                             self._torque_limits)
+
+        # return motor_torques
+        # OLD CODE END
+
+        # Loop over each motor
+        motor_torques = np.zeros(self.n_motors)
+        for i in range(self.n_motors):
+            mode = motor_commands.control_list[i]
+            
+            if mode == "torque":
+                # Ensure that tau_cmd is available and has the correct length
+               
+                # Compute motor torque directly
+                motor_torque = self._strength_ratios[i] * motor_commands.ctrl_value[i] + additional_torques[i] 
+                motor_torques[i] = motor_torque
+                
+            elif mode == "position":
+                # Retrieve desired angle and velocity for the motor
+                desired_motor_angle = motor_commands.ctrl_value[i, 0]
+                desired_motor_velocity = motor_commands.vectrl_value[i,1]
+                
+                # Retrieve kp and kd (can be scalar or array)
+                kp = self._kp[i] if hasattr(self._kp, '__iter__') else self._kp
+                kd = self._kd[i] if hasattr(self._kd, '__iter__') else self._kd
+                
+                # Compute motor torque using PD control
+                motor_torque = - (kp * (cur_q[i] - desired_motor_angle)) - kd * (cur_qdot[i] - desired_motor_velocity)
+                motor_torque = self._strength_ratios[i] * motor_torque + additional_torques[i]
+                motor_torques[i] = motor_torque
+                
+            elif mode == "velocity":
+                # Retrieve desired angle and velocity for the motor
+                desired_motor_velocity = motor_commands.vectrl_value[i]
+                
+                # Retrieve kp and kd (can be scalar or array)
+                kd = self._kd[i] if hasattr(self._kd, '__iter__') else self._kd
+                
+                # Compute motor torque using PD control
+                motor_torque =  - kd * (cur_qdot[i] - desired_motor_velocity)
+                motor_torque = self._strength_ratios[i] * motor_torque + additional_torques[i]
+                motor_torques[i] = motor_torque
+                
+            else:
+                raise ValueError(f"Undefined motor_control_mode for motor {i}: {mode}")
+
+        # Apply torque limits if necessary
         if self._torque_limits is not None:
             if len(self._torque_limits) != len(motor_torques):
-                raise ValueError(
-                    "Torque limits dimension does not match the number of motors.")
-            motor_torques = np.clip(motor_torques, -1.0 * self._torque_limits,
-                                    self._torque_limits)
+                raise ValueError("Torque limits dimension does not match the number of motors.")
+            motor_torques = np.clip(motor_torques, -1.0 * self._torque_limits, self._torque_limits)
 
         return motor_torques

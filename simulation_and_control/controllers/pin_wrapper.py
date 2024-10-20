@@ -14,8 +14,23 @@ except ImportError:
 # q = [global_base_position, global_base_quaternion, joint_positions]
 # v = [local_base_velocity_linear, local_base_velocity_angular, joint_velocities]
 
+
+
+
 # global TODO: add the case for on_rack
 #            : add a mechanism to update the robot model base link poistion and orientation when the robot is fixed frame (for floating is not an issue)
+
+
+def set_continuous_joint_angle(q, idx, theta):
+    q[idx] = np.cos(theta)
+    q[idx + 1] = np.sin(theta)
+
+def get_continuous_joint_angle(q, idx):
+    cos_theta = q[idx]
+    sin_theta = q[idx + 1]
+    return np.arctan2(sin_theta, cos_theta)
+
+
 class ResultsFloatingBaseJoint():
     def __init__(self,base_type):
         self.J = None
@@ -162,6 +177,39 @@ class PinWrapper():
             self.ext2pin = None
             self.pin2ext = None
 
+        # adding control groups to manage different control interfaces in the same robot
+        # if control group is not specify do not crash manage exception
+        # Using get with a default empty list if 'control_groups' is not found
+        control_groups = self.conf.get('robot_pin', {}).get('control_groups', [])
+        # Check if the index is valid
+        if 0 <= index < len(control_groups):
+            self.control_groups = control_groups[index]
+        else:
+            self.control_groups = None
+
+        # based upon control groups name i should match the joint id with the control group name if it is not empty
+        if self.control_groups is not None:
+            # here i create an empty dictionary called control_group_id
+            self.control_group_id = {}
+            # control group is a dictionary
+            # first i get all the keys of the dictionary
+            control_group_names = list(self.control_groups.keys())
+            # for each key i get the list of joint names
+            for name in control_group_names:
+                joint_names_in_group = self.control_groups[name]
+                cur_joint_id = []
+                for joint_name in joint_names_in_group:
+                    # here i get the index of the joint name in the list of joint names and put in a list
+                    cur_joint_id.append(self.pin_model.getJointId(joint_name))
+                # here i add the currebt key and the list of joint id to the dictionary
+                self.control_group_id[name] = cur_joint_id
+        else:
+            self.control_group_id = None
+
+
+
+
+
     def _UrdfPath(self,index,conf_file_path_ext:str = None):
         global missing_robot_description
         if(self.conf['robot_pin']['robot_description_model'][index] and not missing_robot_description):
@@ -199,6 +247,10 @@ class PinWrapper():
             self.n_qdot = self.pin_model.nv - 6   # joint velocity dof
             self.n = self.n_q + self.n_b
             self.n_dot = self.n_qdot + self.n_bdot
+
+        # we need to maange the case of continuos joints which are represented with dimension 2 in pinocchio
+        # i need to create a mapping that expands the mapping that we already have.
+
         
         if self.visualizer:
             from pinocchio.visualize import GepettoVisualizer
