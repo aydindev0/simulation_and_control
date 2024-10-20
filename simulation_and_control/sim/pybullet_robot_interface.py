@@ -186,9 +186,6 @@ class SimRobot():
                 self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], 4, key)
 
         #self.noise_cov = adjust_value(self.noise_flag, self.conf['robot_pybullet']['noise_covariance'][index], self.active_joint_ids, 'noise_covariance')
-
-
-        
             
         # adding delay measures in the simulation
         # i want to be sure that i have a delay only if the flag is up
