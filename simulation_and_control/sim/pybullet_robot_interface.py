@@ -135,9 +135,15 @@ class SimRobot():
         self.SetFootFriction(pybullet_client, self.conf['robot_pybullet']['foot_friction'][index])
         self.SetFootRestitution(pybullet_client, self.conf['robot_pybullet']['foot_restitution'][index])
         
-        self.link_floating_base_ori = self.conf['robot_pybullet']["init_link_base_orientation"][index]
-        self.link_floating_base_pos = self.conf['robot_pybullet']["init_link_base_position"][index]
-        _, self.init_orientation_inv = pybullet_client.invertTransform(position=[0, 0, 0], orientation=self._GetDefaultInitOrientation())
+        if len(self.conf['robot_pybullet']["init_link_base_orientation"][index]) == 0:  
+            self.link_floating_base_pos, self.link_floating_base_ori=pybullet_client.getBasePositionAndOrientation(self.bot_pybullet)
+            # TODO to check
+            _, self.init_orientation_inv = pybullet_client.invertTransform(position=[0, 0, 0], orientation=self._GetDefaultInitOrientation())
+        else:
+            self.link_floating_base_ori = self.conf['robot_pybullet']["init_link_base_orientation"][index]
+            self.link_floating_base_pos = self.conf['robot_pybullet']["init_link_base_position"][index]
+             # TODO to check
+            _, self.init_orientation_inv = pybullet_client.invertTransform(position=[0, 0, 0], orientation=self._GetDefaultInitOrientation())
 
         if len(self.conf['robot_pybullet']["motor_offset"][index]) == 0:
             self.motor_offset = np.zeros(len(self.active_joint_ids))
