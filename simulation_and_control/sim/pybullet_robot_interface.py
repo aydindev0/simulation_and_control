@@ -1821,6 +1821,9 @@ class SimInterface():
             self.pybullet_client.changeDynamics(self.bot[index].bot_pybullet,
                                                   link_id,
                                                   lateralFriction=foot_friction)
+    def SetFloorFriction(self, floor_friction):
+        self.pybullet_client.changeDynamics(self.ground_body, -1, lateralFriction=1.0)
+
 
     def GetFootRestitution(self,index=0):
         """Get the coefficient of restitution at the feet."""

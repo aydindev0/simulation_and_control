@@ -3,4 +3,4 @@ from .pin_wrapper import PinWrapper
 from .FeedbackLin import feedback_lin_ctrl
 from .DynamicCancellation import dyn_cancel 
 from .CartesianKinematic import applyJointVelSaturation, apply_dead_zone, CartesianDiffKin
-from .MobileBaseController import differential_drive_regulation_controller
+from .MobileBaseController import differential_drive_regulation_controller,differential_drive_controller_adjusting_bearing, regulation_polar_coordinates,regulation_polar_coordinate_quat,wrap_angle
