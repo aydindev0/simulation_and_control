@@ -19,7 +19,8 @@ except ImportError:
 
 # global TODO: add the case for on_rack
 #            : add a mechanism to update the robot model base link poistion and orientation when the robot is fixed frame (for floating is not an issue)
-
+#            : managing the case of continuous joints (now they are represented with dimension 2 in pinocchio)
+#            : add mechanics to decompose all the dynamic Stuff (M, coriolis and gravity) even more according to control_group_id and control_groups when they are specified
 
 def set_continuous_joint_angle(q, idx, theta):
     q[idx] = np.cos(theta)

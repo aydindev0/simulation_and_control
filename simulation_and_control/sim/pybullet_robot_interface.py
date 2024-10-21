@@ -623,26 +623,27 @@ class SimInterface():
             
     # sending command to the simulator
     # function to advance the simulation every time step
-    def Step(self, action, control_mode):
+    # added unseless_control_mode for retrocompatibility for now
+    def Step(self, action, unseless_control_mode=None):
         """Steps simulation."""
         
         #proc_action = self.ProcessAction(action, i)
         proc_action = action
-        self._StepInternal(proc_action, control_mode)
+        self._StepInternal(proc_action)
         self.step_counter += 1
         self.last_action = action
 
     # function that is actually making the simulation step after applying the control actions
-    def _StepInternal(self, action, motor_control_mode):
+    def _StepInternal(self, action):
         # here i apply the action to the robot
-        self.ApplyAction(action, motor_control_mode)
+        self.ApplyAction(action)
         # the simulation step is singular for all the robots
         self.pybullet_client.stepSimulation()
         self.ReceiveObservation()
 
     # function that compute the applied torque (even if is not a torque control) and send the torque to the simulated
     # robot
-    def ApplyAction(self, cmd, motor_control_mode):
+    def ApplyAction(self, cmd):
         """Apply the motor commands using the motor model.
 
     Args:
@@ -662,17 +663,24 @@ class SimInterface():
             #self._SetMotorTorqueByIds( motor_control_mode[index], self.bot[index].active_joint_ids, self.bot[index].applied_motor_commands,index)
             # Determine command and control mode based on the number of robots
             current_cmd = cmd[index] if len(self.bot) > 1 else cmd
-            current_control_mode = motor_control_mode[index] if len(self.bot) > 1 else motor_control_mode
+            # now control mode is inside current_cmd
+            #current_control_mode = motor_control_mode[index] if len(self.bot) > 1 else motor_control_mode
 
             # Compute the torque using the appropriate command and control mode
-            cur_M = self.ComputeMassMatrix(previous_state=False, index=index)
-            motor_commands = self.bot[index].servo_motor_model.compute_torque(current_cmd, self.GetMotorAngles(index), self.GetMotorVelocities(index),self.ComputeMotorAccelerationTMinusOne(index), cur_M, current_control_mode)
+            if self.bot[index].base_type=="fixed":
+                cur_M = self.ComputeMassMatrix(previous_state=False, index=index)
+            if self.bot[index].base_type=="floating":
+                M_big = self.ComputeMassMatrix(previous_state=False, index=index)
+                m_big_base, m_big_joints, m_big_joint_to_base, m_big_base_to_joint=self.ComputeSplitMassMatrix(M_big)
+                cur_M = m_big_joints
+
+            motor_commands = self.bot[index].servo_motor_model.compute_torque(current_cmd, self.GetMotorAngles(index), self.GetMotorVelocities(index),self.ComputeMotorAccelerationTMinusOne(index), cur_M)
 
             # Transform into the motor space when applying the torque
             self.bot[index].applied_motor_commands = np.multiply(motor_commands, self.bot[index].motor_direction)
             
             # All the joints are controlled by torque
-            self._SetMotorTorqueByIds(current_control_mode, self.bot[index].active_joint_ids, self.bot[index].applied_motor_commands, index)
+            self._SetMotorTorqueByIds(self.bot[index].active_joint_ids, self.bot[index].applied_motor_commands, index)
 
     # function that apply the motor torque to the simulation (here one joint)
     # we assume that the commands is always in torque (more stable in pybullet)
@@ -688,7 +696,9 @@ class SimInterface():
     # function that apply the motor command to the simulation (here many joints) 
     # we assume that the commands is always in torque (more stable in pybullet)
     # the different control mode are managed by the servo_motor_model
-    def _SetMotorTorqueByIds(self, motor_control_mode, motor_ids, commands, index=0):
+    # HERE I CAN ADD THE CONTROL SWITCH USING THE COMMAND VARIABLE
+    # FOR NOW EVERYTHIN IS TORQUE CONTROL
+    def _SetMotorTorqueByIds(self, motor_ids, commands, index=0):
 
         # here i check if the commands is non empty and then i apply the torque to the joints
         if(commands.size>0): #CHANGE
@@ -899,6 +909,15 @@ class SimInterface():
             # wrong version kept only for update in the future
             #M = self.pybullet_client.calculateMassMatrix(self.bot.bot_pybullet,x.tolist())
             return np.asarray(M)
+        
+    def ComputeSplitMassMatrix(self,M_big):
+        """Splits the mass matrix into the base mass matrix and the leg mass matrix."""
+        m_big_base = M_big[:6, :6]
+        m_big_joints = M_big[6:, 6:]
+        m_big_joint_to_base = M_big[:6, 6:]
+        m_big_base_to_joint = M_big[6:, :6]
+        return m_big_base, m_big_joints, m_big_joint_to_base, m_big_base_to_joint
+
     
     def ComputeCoriolisAndGravityForces(self,previous_state=False,index=0):
         """Computes the Coriolis and gravity forces."""

@@ -29,7 +29,7 @@ from ..utils import adjust_value
 #      self.control_list = control_list
 
 class MotorCommands(object):
-    def __init__(self, ctrl_value=np.array([]), control_list=np.array([])):
+    def __init__(self, ctrl_value=np.array([]), control_list=[]):
         self.control_list = control_list
         
         # Determine the desired length for ctrl_cmd
@@ -45,6 +45,21 @@ class MotorCommands(object):
                 raise ValueError(f"ctrl_value must have length {desired_length}, got {len(ctrl_value)}")
             self.ctrl_cmd = ctrl_value      
 
+    def SetControlCmd(self,ctrl_value,control_list):
+        self.control_list = control_list
+        
+        # Determine the desired length for ctrl_cmd
+        desired_length = len(self.control_list)
+        
+        # Check if ctrl_value has only one element
+        if np.isscalar(ctrl_value) or (isinstance(ctrl_value, np.ndarray) and ctrl_value.size == 1):
+            # Extend ctrl_value to match the desired length
+            self.ctrl_cmd = np.full(desired_length, ctrl_value)
+        else:
+            # Ensure ctrl_value has the correct length
+            if len(ctrl_value) != desired_length:
+                raise ValueError(f"ctrl_value must have length {desired_length}, got {len(ctrl_value)}")
+            self.ctrl_cmd = ctrl_value
 
 # create an abstract class for motor_model
 class ServoMotorModel(object):
@@ -150,8 +165,7 @@ class ServoMotorModel(object):
                           cur_q,
                           cur_qdot,
                           prev_qdotdot,
-                          M,
-                          motor_control_mode):
+                          M):
         """Convert the commands (position control or torque control) to torque.
 
     Args:
@@ -170,11 +184,12 @@ class ServoMotorModel(object):
       motor_torques: The torque that needs to be applied to the motor.
     """
         if not isinstance(motor_commands,MotorCommands):
-          print(" the motor command has to be an instance of the class =", motor_control_mode)
+          print(" the motor command has to be an instance of the class MotorCommands")
           exit()
-	
-        if not motor_control_mode:
-            motor_control_mode = self._motor_control_mode
+
+        # NOW control interface in control commands
+        #if not motor_control_mode:
+        #    motor_control_mode = self._motor_control_mode
 
         additional_torques = np.full(self.n_motors, 0.0)
         
@@ -243,13 +258,13 @@ class ServoMotorModel(object):
                 # Ensure that tau_cmd is available and has the correct length
                
                 # Compute motor torque directly
-                motor_torque = self._strength_ratios[i] * motor_commands.ctrl_value[i] + additional_torques[i] 
+                motor_torque = self._strength_ratios[i] * motor_commands.ctrl_cmd[i] + additional_torques[i] 
                 motor_torques[i] = motor_torque
                 
             elif mode == "position":
                 # Retrieve desired angle and velocity for the motor
-                desired_motor_angle = motor_commands.ctrl_value[i, 0]
-                desired_motor_velocity = motor_commands.vectrl_value[i,1]
+                desired_motor_angle = motor_commands.ctrl_cmd[i, 0]
+                desired_motor_velocity = motor_commands.ctrl_cmd[i,1]
                 
                 # Retrieve kp and kd (can be scalar or array)
                 kp = self._kp[i] if hasattr(self._kp, '__iter__') else self._kp
@@ -262,7 +277,7 @@ class ServoMotorModel(object):
                 
             elif mode == "velocity":
                 # Retrieve desired angle and velocity for the motor
-                desired_motor_velocity = motor_commands.vectrl_value[i]
+                desired_motor_velocity = motor_commands.ctrl_cmd[i]
                 
                 # Retrieve kp and kd (can be scalar or array)
                 kd = self._kd[i] if hasattr(self._kd, '__iter__') else self._kd
