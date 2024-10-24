@@ -495,9 +495,9 @@ class SimInterface():
         if(conf_file_json['env_pybullet']['env_script_name']):
             # here I build the path to the script which is in the env
             if conf_file_path_ext: #CHANGE
-                path_to_env = os.path.join(conf_file_path_ext,'env_scripts',conf_file_json['env_pybullet']['env_script_name']) #CHANGE
+                path_to_env = os.path.join(conf_file_path_ext,'models','scenes',conf_file_json['env_pybullet']['env_script_name']) #CHANGE
             else: #CHANGE
-                path_to_env = os.path.join(os.path.dirname(__file__),os.pardir,'env_scripts',conf_file_json['env_pybullet']['env_script_name'])
+                path_to_env = os.path.join(os.path.dirname(__file__),os.pardir,'models','scenes',conf_file_json['env_pybullet']['env_script_name'])
             self.LoadEnv(path_to_env)
 
         # here I create the robot object lists
@@ -535,6 +535,7 @@ class SimInterface():
         with open(env_script_name, 'r') as file:
             # Iterate through each line in the file
             for line in file:
+                print("cur_line= ",line)
                 exec(line.strip())
 
     ## simulation functions -------------------------------------------------------------------------
