@@ -4,6 +4,26 @@ def wrap_angle(angle):
     return (angle + np.pi) % (2 * np.pi) - np.pi
 
 
+def velocity_to_wheel_angular_velocity(desired_linear_velocity,desired_angular_velocity, wheel_base_width, wheel_radius, number_of_wheels=4):
+    # Compute wheel velocities
+    v_left = desired_linear_velocity - (desired_angular_velocity * wheel_base_width / 2)
+    v_right = desired_linear_velocity + (desired_angular_velocity * wheel_base_width / 2)
+
+    # Convert to wheel angular velocities
+    left_wheel_velocity = v_left / wheel_radius
+    right_wheel_velocity = v_right / wheel_radius
+
+    if number_of_wheels == 2:
+        print("2 wheels: returning the velocity for each wheel")
+        return left_wheel_velocity, right_wheel_velocity
+    elif number_of_wheels == 4:
+        print("4 wheels: returning half the velocity for each wheel")
+        return left_wheel_velocity/2, right_wheel_velocity/2
+    else:
+        # warning message
+        print("number of wheels different from 2 or 4, adjsut the wheel velocity accordingly")
+        return left_wheel_velocity, right_wheel_velocity
+
 def differential_drive_regulation_controller(
     current_position,
     current_orientation,
@@ -13,6 +33,7 @@ def differential_drive_regulation_controller(
     wheel_base_width,
     kp_pos, 
     kp_ori,
+    number_of_wheels=4,
     max_linear_velocity=100,
     max_angular_velocity=100
 ):
@@ -72,13 +93,8 @@ def differential_drive_regulation_controller(
     desired_linear_velocity = np.clip(adjusted_linear_velocity, -max_linear_velocity, max_linear_velocity)
     desired_angular_velocity = np.clip(adjusted_angular_velocity, -max_angular_velocity, max_angular_velocity)
 
-    # Compute individual wheel linear velocities
-    v_left = desired_linear_velocity - (desired_angular_velocity * wheel_base_width / 2)
-    v_right = desired_linear_velocity + (desired_angular_velocity * wheel_base_width / 2)
-
-    # Convert linear velocities to angular velocities (rad/s)
-    left_wheel_velocity = v_left / wheel_radius
-    right_wheel_velocity = v_right / wheel_radius
+    # Compute wheel velocities
+    left_wheel_velocity, right_wheel_velocity = velocity_to_wheel_angular_velocity(desired_linear_velocity,desired_angular_velocity, wheel_base_width, wheel_radius, number_of_wheels)
 
     return left_wheel_velocity, right_wheel_velocity
 
@@ -94,6 +110,7 @@ def differential_drive_controller_adjusting_bearing(
     wheel_base_width,
     kp_pos,
     kp_ori,
+    number_of_wheels=4,
     position_tolerance=0.05,
     orientation_tolerance=0.05,
     max_linear_velocity=100.0,
@@ -177,12 +194,7 @@ def differential_drive_controller_adjusting_bearing(
             return 0.0, 0.0, at_goal
 
     # Compute wheel velocities
-    v_left = desired_linear_velocity - (desired_angular_velocity * wheel_base_width / 2)
-    v_right = desired_linear_velocity + (desired_angular_velocity * wheel_base_width / 2)
-
-    # Convert linear velocities to angular velocities (rad/s)
-    left_wheel_velocity = v_left / wheel_radius
-    right_wheel_velocity = v_right / wheel_radius
+    left_wheel_velocity, right_wheel_velocity = velocity_to_wheel_angular_velocity(desired_linear_velocity,desired_angular_velocity, wheel_base_width, wheel_radius, number_of_wheels)
 
     at_goal = False
     return left_wheel_velocity, right_wheel_velocity, at_goal
@@ -191,7 +203,7 @@ def differential_drive_controller_adjusting_bearing(
 
 
 def regulation_polar_coordinates(x, y, theta, xg, yg, thetag,wheel_radius,
-    wheel_base_width, k_rho, k_alpha, k_beta):
+    wheel_base_width, k_rho, k_alpha, k_beta,number_of_wheels=4):
     # Calculate the position of the goal in robot's local frame
     dx = xg - x
     dy = yg - y
@@ -243,7 +255,7 @@ def quaternion_to_euler(q):
     return 2 * np.arctan2(z, w)
 
 def regulation_polar_coordinate_quat(x, y, theta, xg, yg, thetag,wheel_radius,
-                                    wheel_base_width, k_rho, k_alpha, k_beta):
+                                    wheel_base_width, k_rho, k_alpha, k_beta,number_of_wheels=4):
                                             
     # Compute position difference
     dx = xg - x
@@ -275,12 +287,7 @@ def regulation_polar_coordinate_quat(x, y, theta, xg, yg, thetag,wheel_radius,
     desired_angular_velocity = k_alpha * alpha + k_beta * beta
 
     # Compute wheel velocities
-    v_left = desired_linear_velocity - (desired_angular_velocity * wheel_base_width / 2)
-    v_right = desired_linear_velocity + (desired_angular_velocity * wheel_base_width / 2)
-
-    # Convert to wheel angular velocities
-    left_wheel_velocity = v_left / wheel_radius
-    right_wheel_velocity = v_right / wheel_radius
+    left_wheel_velocity, right_wheel_velocity = velocity_to_wheel_angular_velocity(desired_linear_velocity,desired_angular_velocity, wheel_base_width, wheel_radius, number_of_wheels)
 
     return left_wheel_velocity, right_wheel_velocity
 
