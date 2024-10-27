@@ -182,7 +182,7 @@ class SimRobot():
             if key in ("base_pos_cov", "base_lin_vel_cov", "base_ang_vel_cov"):
                 self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], 3, key)
             if key in ("base_ori_cov"):
-                self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], 4, key)
+                self.robot_noise[key] = adjust_value(self.noise_flag, self.robot_noise[key], 3, key)
 
         #self.noise_cov = adjust_value(self.noise_flag, self.conf['robot_pybullet']['noise_covariance'][index], self.active_joint_ids, 'noise_covariance')
             
@@ -1349,8 +1349,22 @@ class SimInterface():
 
         # Add noise if the noise flag is set
         if self.bot[index].noise_flag:
-            noise = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"], size=base_ori.shape)
-            base_ori += noise
+            noise_roll = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"][0],)
+            noise_pitch = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"][1])
+            noise_yaw = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"][2])
+    
+            # Convert Euler angles to quaternion
+            noise_quaternion = self.pybullet_client.getQuaternionFromEuler([noise_roll, noise_pitch, noise_yaw])
+            base_ori = self.pybullet_client.multiplyTransforms([0,0,0], noise_quaternion, [0,0,0], base_ori)[1]
+            # normalize quaternion
+            norm = np.linalg.norm(base_ori)
+            if norm < 1e-8:
+                raise ValueError("Cannot normalize a zero-length quaternion")
+            base_ori = [component / norm for component in base_ori]
+            #noise = np.random.normal(0, self.bot[index].robot_noise["base_ori_cov"], size=base_ori.shape)
+            #base_ori += noise
+            # here i need to ensure that the orientation is a quaternion that is unitary 
+
 
         return base_ori
         
