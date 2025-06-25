@@ -1159,6 +1159,13 @@ class SimInterface():
     def GetTimeSinceReset(self):
         return self.step_counter * self.time_step
 
+    # compute the forces needed to reach the given joint accelerations,
+    # starting from specified joint positions and velocitie
+    def calculateInverseDynamics(self, positions, velocities, accelerations):
+            # for calculating the expected torques
+            joint_forces = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[0].bot_pybullet, positions.tolist(), velocities.tolist(), accelerations.tolist()))
+            return joint_forces
+
     #with this function i can get the position and orientation of any robot link in world frame
     # link_or_com = allows to choose if the position and orientation of the joint which the link is attached to
     #  or the link CoM is returned (world frame)
