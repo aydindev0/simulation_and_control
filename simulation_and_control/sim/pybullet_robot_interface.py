@@ -1166,6 +1166,23 @@ class SimInterface():
             joint_forces = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[0].bot_pybullet, positions.tolist(), velocities.tolist(), accelerations.tolist()))
             return joint_forces
 
+    def applyExternalForce(self, link_id=-1, force=(0., 0., 0.), position=None, frame=1):
+                    """
+                    Apply the specified external force on the specified position on the body / link.
+                    After each simulation step, the external forces are cleared to zero.
+                    """
+
+                    body = self.bot[0].bot_pybullet
+                    if position is None:
+                        if link_id == -1:
+                            position = self.GetBasePosition()
+                        else:
+                            position = self.GetLinkPositionAndOrientation(link_id, "com")
+                
+                    self.pybullet_client.applyExternalForce(objectUniqueId=body, linkIndex=link_id, forceObj=force, posObj=position,
+                                                flags=frame)
+                    print("Applied force", force, "at position", position, "on link", link_id)
+
     #with this function i can get the position and orientation of any robot link in world frame
     # link_or_com = allows to choose if the position and orientation of the joint which the link is attached to
     #  or the link CoM is returned (world frame)
