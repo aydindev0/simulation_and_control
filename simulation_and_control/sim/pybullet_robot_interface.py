@@ -1182,7 +1182,13 @@ class SimInterface():
                     self.pybullet_client.applyExternalForce(objectUniqueId=body, linkIndex=link_id, forceObj=force, posObj=position,
                                                 flags=frame)
                     print("Applied force", force, "at position", position, "on link", link_id)
-
+    
+    # get the link state for a given link
+    # can be used for position and orientation details
+    def getLinkState(self, linkIndex):
+            body = self.bot[0].bot_pybullet
+            link_state = self.pybullet_client.getLinkState(body, linkIndex)
+            return link_state
     #with this function i can get the position and orientation of any robot link in world frame
     # link_or_com = allows to choose if the position and orientation of the joint which the link is attached to
     #  or the link CoM is returned (world frame)
