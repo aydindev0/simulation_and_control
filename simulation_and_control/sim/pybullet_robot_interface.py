@@ -1189,6 +1189,30 @@ class SimInterface():
             body = self.bot[0].bot_pybullet
             link_state = self.pybullet_client.getLinkState(body, linkIndex)
             return link_state
+    
+
+    def calculateJacobian(self, link_index, local_position, joint_positions, joint_velocities, joint_accelerations):
+        """
+        Compute the Jacobian for a given link.
+        """
+        body = self.bot[0].bot_pybullet
+        print(body)
+        if local_position is None:
+            _, _, loc_pos, _, _, _ = self.pybullet_client.getLinkState(body, link_index)
+        else:
+            loc_pos = local_position
+        
+        # Compute Jacobian
+        linear_jacobian, angular_jacobian = self.pybullet_client.calculateJacobian(
+            bodyUniqueId=body,
+            linkIndex=link_index,
+            localPosition=loc_pos,
+            objPositions=joint_positions,
+            objVelocities=joint_velocities,
+            objAccelerations=joint_accelerations
+        )
+        return linear_jacobian, angular_jacobian
+
     #with this function i can get the position and orientation of any robot link in world frame
     # link_or_com = allows to choose if the position and orientation of the joint which the link is attached to
     #  or the link CoM is returned (world frame)
