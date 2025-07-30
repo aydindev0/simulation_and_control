@@ -927,6 +927,7 @@ class SimInterface():
                 x,xdot = self.GetSystemPreviousStateInternal(True)
             else:
                 x,xdot = self.GetSystemStateInternal(True)
+                xdotdot_zero = [0] * (len(xdot))
             return np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[index].bot_pybullet, x.tolist(), xdot.tolist(), xdotdot_zero))
         else:
             if(previous_state):
@@ -1165,7 +1166,33 @@ class SimInterface():
             # for calculating the expected torques
             joint_forces = np.asarray(self.pybullet_client.calculateInverseDynamics(self.bot[0].bot_pybullet, positions.tolist(), velocities.tolist(), accelerations.tolist()))
             return joint_forces
-
+    
+    def rayTestBatch(self, rayFromPositions, rayToPositions, batch=True):
+        if batch == False:
+            results = self.pybullet_client.rayTest(rayFromPositions, rayToPositions)
+        else:
+            results = self.pybullet_client.rayTestBatch(rayFromPositions, rayToPositions)
+        return results
+    
+    def getVisualShapeData(self):
+        body = self.bot[0].bot_pybullet
+        shape_data = self.pybullet_client.getVisualShapeData(body)
+        return shape_data
+    
+    def getCollisionShapeData(self, link_index):
+        body = self.bot[0].bot_pybullet
+        shape_data = self.pybullet_client.getCollisionShapeData(body, link_index)
+        return shape_data
+        
+    def changeVisualShape(self, link_index, rgbaColor):
+        body = self.bot[0].bot_pybullet
+        self.pybullet_client.changeVisualShape(body, link_index, rgbaColor=rgbaColor)
+    
+    def getMatrixFromQuaternion(self, quaternion):
+        print(quaternion)
+        matrix = self.pybullet_client.getMatrixFromQuaternion(quaternion)
+        return matrix
+    
     def applyExternalForce(self, link_id=-1, force=(0., 0., 0.), position=None, frame=1):
                     """
                     Apply the specified external force on the specified position on the body / link.
@@ -1180,17 +1207,62 @@ class SimInterface():
                             position = self.GetLinkPositionAndOrientation(link_id, "com")
                 
                     self.pybullet_client.applyExternalForce(objectUniqueId=body, linkIndex=link_id, forceObj=force, posObj=position,
-                                                flags=frame)
+                                                flags=pybullet.LINK_FRAME)
                     print("Applied force", force, "at position", position, "on link", link_id)
     
+    def getBasePositionAndOrientation(self):
+        body = self.bot[0].bot_pybullet
+
+        position = self.pybullet_client.getBasePositionAndOrientation(body)
+        return position
+    
+    def multiplyTransforms(self, posA, oriA, posB, oriB):
+        position, orientation = self.pybullet_client.multiplyTransforms(posA, oriA, posB, oriB)
+        return position, orientation
+        
     # get the link state for a given link
     # can be used for position and orientation details
-    def getLinkState(self, linkIndex):
+    def getLinkState(self, linkIndex, computeForwardKinematics=True):
             body = self.bot[0].bot_pybullet
-            link_state = self.pybullet_client.getLinkState(body, linkIndex)
+            link_state = self.pybullet_client.getLinkState(body, linkIndex, computeForwardKinematics)
             return link_state
     
+ 
+    
+    def findMinMaxLinkAABB(self, linkIndex):
+        """
+        Find the minimum and maximum AABB (Axis-Aligned Bounding Box) for a given link.
+        """
+        body = self.bot[0].bot_pybullet
+        aabb = self.pybullet_client.getAABB(body, linkIndex)
 
+        link_state = self.pybullet_client.getLinkState(body, linkIndex)
+        link_pos, link_orn = link_state[0], link_state[1]
+        inv_pos, inv_orn = self.pybullet_client.invertTransform(link_pos, link_orn)
+
+        # tranform the AABB to the link frame
+        min_aabb = self.pybullet_client.multiplyTransforms(inv_pos, inv_orn, aabb[0], (0, 0, 0, 1))[0]
+        max_aabb = self.pybullet_client.multiplyTransforms(inv_pos, inv_orn, aabb[1], (0, 0, 0, 1))[0]
+
+        # return the min and max AABB in the link frame
+        # min_aabb and max_aabb are in the link frame
+        return min_aabb, max_aabb
+
+
+        min_aabb = aabb[0]
+        max_aabb = aabb[1]
+        return min_aabb, max_aabb
+        
+    def addUserDebugLine(self, from_world, to_world, linecolorRGB, lineWidth, lifeTime=0):
+        body = self.bot[0].bot_pybullet
+        self.pybullet_client.addUserDebugLine(
+            lineFromXYZ=from_world,
+            lineToXYZ=to_world,
+            lineColorRGB=linecolorRGB,
+            lineWidth=lineWidth,
+            lifeTime=lifeTime
+        )
+        
     def calculateJacobian(self, link_index, local_position, joint_positions, joint_velocities, joint_accelerations):
         """
         Compute the Jacobian for a given link.
