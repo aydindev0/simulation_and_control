@@ -1227,7 +1227,7 @@ class SimInterface():
             link_state = self.pybullet_client.getLinkState(body, linkIndex, computeForwardKinematics)
             return link_state
     
- 
+    
     
     def findMinMaxLinkAABB(self, linkIndex):
         """
@@ -1248,10 +1248,42 @@ class SimInterface():
         # min_aabb and max_aabb are in the link frame
         return min_aabb, max_aabb
 
+    def findMeshSurfacePoints(self, linkIndex, sampleNumber):
 
-        min_aabb = aabb[0]
-        max_aabb = aabb[1]
-        return min_aabb, max_aabb
+        # https://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere
+        def fibonacci_sphere(samples=1000):
+
+            points = []
+            phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
+
+            for i in range(samples):
+                y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+                radius = math.sqrt(1 - y * y)  # radius at y
+
+                theta = phi * i  # golden angle increment
+
+                x = math.cos(theta) * radius
+                z = math.sin(theta) * radius
+
+                points.append((x, y, z))
+            return points
+        aabb_min, aabb_max = self.findMinMaxLinkAABB(linkIndex)
+        centre = np.add(aabb_min, aabb_max) * 0.5 # this finds the center of the bounding box
+        L = 0.5 * np.linalg.norm(np.subtract(aabb_max, aabb_min)) # distance from centre to furthest corner i.e. radius of the bounding sphere 
+
+        dirs = fibonacci_sphere(sampleNumber)
+        ray_starts = []
+        ray_ends = []
+        for d in dirs:
+            d = np.array(d)
+            ray_starts.append((centre - L*d).tolist()) # from outside the box on one side
+            ray_ends.append((centre + L*d).tolist())  # to outside the box on the other side
+        
+        results = self.rayTestBatch(ray_starts, ray_ends)
+
+        surface_points = [r[3] for r in results]
+
+        return surface_points
         
     def addUserDebugLine(self, from_world, to_world, linecolorRGB, lineWidth, lifeTime=0):
         body = self.bot[0].bot_pybullet
